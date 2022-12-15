@@ -83,6 +83,7 @@ namespace symxx
       denominator *= i.denominator;
       if (denominator == 0)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+      reduct();
       return *this;
     }
     Rational operator-(const Rational &i) const
@@ -108,6 +109,7 @@ namespace symxx
       denominator *= i.denominator;
       if (denominator == 0)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+      reduct();
       return *this;
     }
     Rational operator/(const Rational &i) const
@@ -119,6 +121,7 @@ namespace symxx
     Rational &operator/=(const Rational &i)
     {
       *this *= i.reciprocate();
+      reduct();
       return *this;
     }
     Rational operator^(std::make_unsigned_t<T> p) const
@@ -133,6 +136,7 @@ namespace symxx
       denominator = static_cast<T>(std::pow(denominator, p));
       if (denominator == 0)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+      reduct();
       return *this;
     }
     bool operator<(const Rational &r) const
@@ -149,7 +153,15 @@ namespace symxx
       return numerator * r.denominator > r.numerator * denominator;
     }
     bool is_int() const { return numerator % denominator == 0; }
-    Rational opposite() const { return {-numerator, denominator}; }
+    bool is_square() const
+    {
+      return (std::sqrt(std::abs(numerator)) - static_cast<T>(std::sqrt(std::abs(numerator))) == 0) &&
+             (std::sqrt(std::abs(denominator)) - static_cast<T>(std::sqrt(std::abs(denominator))) == 0);
+    }
+    Rational opposite() const
+    {
+      return {-numerator, denominator};
+    }
     Rational reciprocate() const { return {denominator, numerator}; }
     void reduct()
     {
@@ -183,6 +195,241 @@ namespace symxx
     else
       os << i.numerator;
     return os;
+  }
+  template <typename T,
+            typename = typename std::enable_if_t<std::is_integral<T>::value>>
+  bool is_prime(T a)
+  {
+    T i = 2;
+    while (i < a)
+    {
+      if (a % i == 0)
+        break;
+      i++;
+    }
+    if (i == a)
+      return true;
+    else
+      return false;
+  }
+
+  template <typename T>
+  class Radical
+  {
+    template <typename U>
+    friend std::ostream &operator<<(std::ostream &os, const Radical<U> &i);
+
+  private:
+    using IndexT = std::make_unsigned_t<T>;
+    IndexT index;
+    Rational<T> radicand;
+    Rational<T> coe;
+
+  public:
+    Radical(const Rational<T> &c, const Rational<T> &r, IndexT i)
+        : index(i), radicand(r), coe(c) { reduct(); }
+    Radical(const Rational<T> &c)
+        : index(1), radicand(1), coe(c) { reduct(); }
+    Radical(const T &c)
+        : index(1), radicand(1), coe(c) { reduct(); }
+    bool is_equivalent_with(const Radical &t) const
+    {
+      if (radicand == t.radicand && radicand == 1)
+        return true;
+      if (index == t.index && index == 1)
+        return true;
+      return (radicand == t.radicand && index == t.index);
+    }
+    Radical &operator+=(const Radical &r)
+    {
+      if (!is_equivalent_with(r))
+        throw Error(SYMXX_ERROR_LOCATION, __func__, "radicand and index must be the same.");
+      coe += r.coe;
+      reduct();
+      return *this;
+    }
+    Radical operator+(const Radical &r) const
+    {
+      auto a = *this;
+      a += r;
+      return a;
+    }
+
+    Radical &operator-=(const Radical &r)
+    {
+      *this += r.opposite();
+      reduct();
+      return *this;
+    }
+    Radical operator-(const Radical &r) const
+    {
+      auto a = *this;
+      a -= r;
+      return a;
+    }
+
+    Radical &operator*=(const Radical &r)
+    {
+      radicand ^= r.index;
+      radicand *= r.radicand ^ index;
+      index *= r.index;
+      coe *= r.coe;
+      reduct();
+      return *this;
+    }
+    Radical operator*(const Radical &r) const
+    {
+      auto a = *this;
+      a *= r;
+      return a;
+    }
+
+    Radical &operator/=(const Radical &r)
+    {
+      radicand ^= r.index;
+      radicand *= r.radicand.reciprocate() ^ index;
+      coe /= r.coe;
+      index *= r.index;
+      reduct();
+      return *this;
+    }
+    Radical operator/(const Radical &r) const
+    {
+      auto a = *this;
+      a /= r;
+      return a;
+    }
+    Radical operator^(std::make_unsigned_t<T> p) const
+    {
+      auto a = *this;
+      a ^= p;
+      return a;
+    }
+    Radical &operator^=(std::make_unsigned_t<T> p)
+    {
+      coe ^= p;
+      radicand ^= p;
+      reduct();
+      return *this;
+    }
+    Rational<T> &get_coe() const
+    {
+      return coe;
+    }
+    Rational<T> &get_coe()
+    {
+      return coe;
+    }
+    bool operator<(const Radical &r) const
+    {
+      return coe * (radicand ^ r.index) < r.coe * (r.radicand * index);
+    }
+    bool operator==(const Radical &r) const
+    {
+      return coe == r.coe && radicand == r.radicand && index == r.index;
+    }
+    bool operator!=(const Radical &r) const { return !(*this == r); }
+    bool operator>(const Radical &r) const
+    {
+      return !(*this < r);
+    }
+    void reduct()
+    {
+      if (radicand.is_square())
+      {
+        coe *= std::sqrt(radicand.get_numerator());
+        coe /= std::sqrt(radicand.get_denominator());
+        radicand = 1;
+        index = 1;
+        return;
+      }
+      T num = radicand.get_numerator();
+      T numbak = num;
+      for (int i = 2; i < num; i++)
+      {
+        if (num <= 1)
+          return;
+        if (!is_prime(i))
+          continue;
+        IndexT k = 0;
+        while (numbak % i == 0)
+        {
+          numbak /= i;
+          ++k;
+        }
+        if (k >= index)
+        {
+          coe *= std::pow(i, k / index);
+          num /= std::pow(i, k - k % index);
+        }
+        else
+          break;
+      }
+
+      T den = radicand.get_denominator();
+      T denbak = den;
+      for (int i = 2; i < den; i++)
+      {
+        if (den <= 1)
+          return;
+        if (!is_prime(i))
+          continue;
+        IndexT k = 0;
+        while (denbak % i == 0)
+        {
+          denbak /= i;
+          ++k;
+        }
+        if (k >= index)
+        {
+          coe /= std::pow(i, k / index);
+          den /= std::pow(i, k - k % index);
+        }
+        else
+          break;
+      }
+      radicand = {num, den};
+      if (radicand == 1)
+        index = 1;
+    }
+    Radical opposite() const { return {coe.opposite(), radicand, index}; }
+  };
+  template <typename U>
+  std::ostream &
+  operator<<(std::ostream &os, const Radical<U> &i)
+  {
+    if (i.coe == 0)
+    {
+      os << 0;
+      return os;
+    }
+    if (i.index == 1)
+    {
+      os << i.radicand * i.coe;
+      return os;
+    }
+    if (i.radicand == 1)
+    {
+      os << i.coe;
+      return os;
+    }
+    if (i.coe != 1)
+      os << i.coe << "(";
+
+    if (i.index != 2)
+      os << "(" << i.index << "g" << i.radicand << ")";
+    else
+      os << "g" << i.radicand;
+
+    if (i.coe != 1)
+      os << ")";
+    return os;
+  }
+
+  template <typename T>
+  Radical<T> nth_root(std::make_unsigned_t<T> n, Rational<T> q)
+  {
+    return Radical<T>{1, q, n};
   }
 }
 #endif

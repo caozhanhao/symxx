@@ -23,9 +23,8 @@
 
 namespace symxx
 {
-
   template <typename T>
-  using Environment = std::shared_ptr<std::map<std::string, Rational<T>>>;
+  using Environment = std::shared_ptr<std::map<std::string, Radical<T>>>;
 
   template <typename T>
   class Term
@@ -34,16 +33,24 @@ namespace symxx
     friend std::ostream &operator<<(std::ostream &os, const Term<U> &i);
 
   private:
-    Rational<T> coe;
+    Radical<T> coe;
     std::vector<std::string> symbols;
     Environment<T> env;
 
   public:
-    Term(Rational<T> c,
+    Term(Radical<T> c,
          std::vector<std::string> u = {},
          Environment<T> e = nullptr)
         : coe(c), symbols(u), env(e)
     {
+      reduct();
+    }
+    Term(const Term &t)
+        : coe(t.coe), symbols(t.symbols)
+    {
+      if (env != nullptr)
+        env = t.env;
+      reduct();
     }
     void set_env(Environment<T> e) { env = e; }
     bool operator<(const Term &t) const
@@ -62,6 +69,7 @@ namespace symxx
     {
       symbols.insert(symbols.cend(), t.symbols.cbegin(), t.symbols.cend());
       coe *= t.coe;
+      reduct();
       return *this;
     }
     Term operator*(const Term &t) const
@@ -70,12 +78,13 @@ namespace symxx
       a *= t;
       return a;
     }
-    Term &operator/=(const Rational<T> &t)
+    Term &operator/=(const Radical<T> &t)
     {
       coe /= t;
+      reduct();
       return *this;
     }
-    Term operator/(const Rational<T> &t)
+    Term operator/(const Radical<T> &t)
     {
       auto tm = *this;
       tm /= t;
@@ -85,7 +94,7 @@ namespace symxx
     bool is_positive() const { return get_coe() > 0; }
     bool is_equivalent_with(const Term &t) const
     {
-      return get_symbols() == t.get_symbols();
+      return (get_symbols() == t.get_symbols()) && (get_coe().is_equivalent_with(t.get_coe()));
     }
     auto get_coe() const
     {
@@ -109,6 +118,7 @@ namespace symxx
           a.end());
       return a;
     }
+    void reduct() { std::sort(symbols.begin(), symbols.end()); }
   };
 
   template <typename T>
@@ -121,14 +131,15 @@ namespace symxx
     std::vector<Term<T>> poly;
 
   public:
-    Poly(std::vector<Term<T>> p)
+    Poly(std::initializer_list<Term<T>> p)
         : poly(p)
     {
       reduct();
     }
-    Poly &operator+(const Poly &i)
+    Poly &operator+=(const Poly &i)
     {
-      poly.insert(poly.end(), i.cbegin(), i.cend());
+      poly.insert(poly.end(), i.poly.cbegin(), i.poly.cend());
+      reduct();
       return *this;
     }
     Poly operator+(const Poly &i) const
@@ -140,6 +151,7 @@ namespace symxx
     Poly &operator-=(const Poly &i)
     {
       *this += i.opposite();
+      reduct();
       return *this;
     }
     Poly operator-(const Poly &i) const
@@ -150,11 +162,14 @@ namespace symxx
     }
     Poly &operator*=(const Poly &i)
     {
+      std::vector<Term<T>> tmp;
       for (auto &x : poly)
       {
         for (auto &y : i.poly)
-          poly.emplace_back(x * y);
+          tmp.emplace_back(x * y);
       }
+      poly = tmp;
+      reduct();
       return *this;
     }
     Poly operator*(const Poly &i) const
@@ -163,24 +178,45 @@ namespace symxx
       a *= i;
       return a;
     }
-    Poly &operator/=(const Rational<T> &i)
+    Poly &operator/=(const Radical<T> &i)
     {
       for (auto &r : poly)
         r /= i;
+      reduct();
       return *this;
     }
-    Poly operator/(const Rational<T> &i) const
+    Poly operator/(const Radical<T> &i) const
     {
       auto p = *this;
       p /= i;
       return p;
     }
+    Poly &operator^=(const std::make_unsigned_t<T> &i)
+    {
+      if (i == 0)
+      {
+        *this = {Term<T>(1)};
+        return *this;
+      }
+      auto p = *this;
+      for (int j = 0; j < i - 1; ++j)
+        *this *= p;
+      reduct();
+      return *this;
+    }
+
+    Poly operator^(const std::make_unsigned_t<T> &i) const
+    {
+      auto p = *this;
+      p ^= i;
+      return p;
+    }
     Poly opposite() const
     {
-      auto a = poly;
-      for (auto &r : a)
+      auto a = *this;
+      for (auto &r : a.poly)
         r = r.opposite();
-      return {a};
+      return a;
     }
     void set_env(Environment<T> e)
     {
@@ -189,7 +225,8 @@ namespace symxx
     }
     void reduct()
     {
-      std::sort(poly.begin(), poly.end());
+      std::sort(poly.begin(), poly.end(), [](auto &&x1, auto &&x2)
+                { return !(x1 < x2); });
       for (auto it = poly.begin(); it < poly.end();)
       {
         if ((it + 1) < poly.end() && it->is_equivalent_with(*(it + 1)))
@@ -227,7 +264,7 @@ namespace symxx
 
   public:
     Frac(const Poly<T> &n)
-        : numerator(n), denominator({{1}}), env(nullptr)
+        : numerator(n), denominator({Term<T>{1}}), env(nullptr)
     {
       reduct();
     }
@@ -238,7 +275,12 @@ namespace symxx
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
       reduct();
     }
-
+    Frac(const Frac &t)
+        : numerator(t.numerator), denominator(t.denominator)
+    {
+      if (env != nullptr)
+        env = t.env;
+    }
     Frac &operator+=(const Frac &t)
     {
       if (denominator == t.denominator)
@@ -253,6 +295,7 @@ namespace symxx
       }
       if (denominator.is_zero())
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+      reduct();
       return *this;
     }
 
@@ -265,6 +308,7 @@ namespace symxx
     Frac &operator-=(const Frac &t)
     {
       *this += t.opposite();
+      reduct();
       return *this;
     }
     Frac operator-(const Frac &t) const
@@ -279,6 +323,7 @@ namespace symxx
       denominator *= t.denominator;
       if (denominator.is_zero())
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+      reduct();
       return *this;
     }
     Frac operator*(const Frac &t) const
@@ -291,6 +336,7 @@ namespace symxx
     {
       numerator *= t.denominator;
       denominator *= t.numerator;
+      reduct();
       return *this;
     }
     Frac operator/(const Frac &t) const
@@ -299,10 +345,24 @@ namespace symxx
       a /= t;
       return a;
     }
-    Frac set_var(const std::map<std::string, Rational<T>> &val) const
+    Frac &operator^=(const std::make_unsigned_t<T> &i)
+    {
+      numerator ^= i;
+      denominator ^= i;
+      reduct();
+      return *this;
+    }
+
+    Frac operator^(const std::make_unsigned_t<T> &i) const
+    {
+      auto p = *this;
+      p ^= i;
+      return p;
+    }
+    Frac set_var(const std::map<std::string, Radical<T>> &val) const
     {
       Frac ret = *this;
-      ret.env = std::make_shared<std::map<std::string, Rational<T>>>(val);
+      ret.env = std::make_shared<std::map<std::string, Radical<T>>>(val);
       ret.numerator.set_env(ret.env);
       ret.denominator.set_env(ret.env);
       ret.reduct();
@@ -317,18 +377,18 @@ namespace symxx
       denominator.reduct();
       T den = 1;
       for (auto &r : denominator.get_poly())
-        den *= r.get_coe().get_denominator();
+        den *= r.get_coe().get_coe().get_denominator();
       for (auto &r : numerator.get_poly())
         r *= Term<T>{den, {}, env};
       for (auto &r : denominator.get_poly())
         r *= Term<T>{den, {}, env};
 
-      T g = gcd(numerator.get_poly()[0].get_coe().to_t(), denominator.get_poly()[0].get_coe().to_t());
+      T g = gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(), denominator.get_poly()[0].get_coe().get_coe().to_t());
       for (auto &n : numerator.get_poly())
       {
         for (std::size_t i = 1; i < denominator.get_poly().size(); ++i)
         {
-          T new_g = gcd(n.get_coe().to_t(), denominator.get_poly()[i].get_coe().to_t());
+          T new_g = gcd(n.get_coe().get_coe().to_t(), denominator.get_poly()[i].get_coe().get_coe().to_t());
           if (g % new_g == 0)
             g = std::min(g, new_g);
           else
