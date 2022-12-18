@@ -11,10 +11,10 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
-#include "expr.hpp"
-#include "num.hpp"
-#include "utils.hpp"
-#include "parser.hpp"
+#include "symxx/expr.hpp"
+#include "symxx/num.hpp"
+#include "symxx/utils.hpp"
+#include "symxx/parser.hpp"
 #include <iostream>
 using namespace symxx;
 using IntType = long long int;
