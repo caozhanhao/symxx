@@ -11,30 +11,24 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
-#include "expr.hpp"
+#ifndef SYMXX_UTILS_HPP
+#define SYMXX_UTILS_HPP
 #include "num.hpp"
-#include "utils.hpp"
-#include "parser.hpp"
-#include <iostream>
-using namespace symxx;
-using IntType = long long int;
-int main()
+#include "expr.hpp"
+#include "error.hpp"
+#include <utility>
+#include <map>
+#include <string>
+namespace symxx
 {
-  while (true)
+  template <typename T>
+  std::pair<Frac<T>, Frac<T>> solve_quadratic(const Rational<T> &a, const Rational<T> &b, const Rational<T> &c)
   {
-    try
-    {
-      std::string str;
-      std::cout << ">> ";
-      std::getline(std::cin, str);
-      Parser<IntType> p{str};
-      auto a = p.parse();
-      std::cout << a << std::endl;
-    }
-    catch (Error &e)
-    {
-      std::cout << e.get_content() << std::endl;
-    }
+    Rational<T> delta = (b ^ 2) - (a * c * 4);
+    Frac<T> gdelta{nth_root(2, delta)};
+    auto x1 = (Frac<T>{b.opposite()} + gdelta) / Frac<T>{a * 2};
+    auto x2 = (Frac<T>{b.opposite()} - gdelta) / Frac<T>{a * 2};
+    return {x1, x2};
   }
-  return 0;
 }
+#endif

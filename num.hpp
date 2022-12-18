@@ -124,16 +124,16 @@ namespace symxx
       reduct();
       return *this;
     }
-    Rational operator^(std::make_unsigned_t<T> p) const
+    Rational operator^(const Rational<T> &p) const
     {
       auto a = *this;
       a ^= p;
       return a;
     }
-    Rational &operator^=(std::make_unsigned_t<T> p)
+    Rational &operator^=(const Rational<T> &p)
     {
-      numerator = static_cast<T>(std::pow(numerator, p));
-      denominator = static_cast<T>(std::pow(denominator, p));
+      numerator = static_cast<T>(std::pow(numerator, p.template to<double>()));
+      denominator = static_cast<T>(std::pow(denominator, p.template to<double>()));
       if (denominator == 0)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
       reduct();
@@ -299,16 +299,27 @@ namespace symxx
       a /= r;
       return a;
     }
-    Radical operator^(std::make_unsigned_t<T> p) const
+    Radical operator^(const Rational<T> &p) const
     {
       auto a = *this;
       a ^= p;
       return a;
     }
-    Radical &operator^=(std::make_unsigned_t<T> p)
+    Radical &operator^=(const Rational<T> &p)
     {
-      coe ^= p;
-      radicand ^= p;
+      if (p.is_int())
+      {
+        coe ^= p;
+        radicand ^= p;
+      }
+      else
+      {
+        radicand ^= p.get_numerator();
+        index *= p.get_denominator();
+        auto cb = coe ^ p.get_numerator();
+        coe = 1;
+        *this *= Radical<T>{Rational<T>{1}, cb, p.get_denominator()};
+      }
       reduct();
       return *this;
     }
@@ -335,20 +346,12 @@ namespace symxx
     }
     void reduct()
     {
-      if (radicand.is_square())
-      {
-        coe *= std::sqrt(radicand.get_numerator());
-        coe /= std::sqrt(radicand.get_denominator());
-        radicand = 1;
-        index = 1;
-        return;
-      }
       T num = radicand.get_numerator();
       T numbak = num;
       for (int i = 2; i < num; i++)
       {
         if (num <= 1)
-          return;
+          break;
         if (!is_prime(i))
           continue;
         IndexT k = 0;
@@ -362,8 +365,12 @@ namespace symxx
           coe *= std::pow(i, k / index);
           num /= std::pow(i, k - k % index);
         }
-        else
-          break;
+        else if (numbak == 1)
+        {
+          auto g = gcd(index, k);
+          index /= k;
+          num = std::pow(i, k / g);
+        }
       }
 
       T den = radicand.get_denominator();
@@ -371,7 +378,7 @@ namespace symxx
       for (int i = 2; i < den; i++)
       {
         if (den <= 1)
-          return;
+          break;
         if (!is_prime(i))
           continue;
         IndexT k = 0;
@@ -385,14 +392,34 @@ namespace symxx
           coe /= std::pow(i, k / index);
           den /= std::pow(i, k - k % index);
         }
-        else
-          break;
+        else if (denbak == 1)
+        {
+          auto g = gcd(index, k);
+          index /= k;
+          den = std::pow(i, k / g);
+        }
       }
       radicand = {num, den};
       if (radicand == 1)
         index = 1;
     }
     Radical opposite() const { return {coe.opposite(), radicand, index}; }
+    bool is_rational()
+    {
+      return coe == 0 || radicand == 1 || radicand == 0 || index == 1 || index == 0;
+    }
+    template <typename U>
+    U to() const
+    {
+      return coe.template to<U>() *
+             static_cast<U>(std::pow(radicand.template to<double>(), 1.0 / static_cast<double>(index)));
+    }
+    Rational<T> to() const
+    {
+      if (!is_rational())
+        throw Error(SYMXX_ERROR_LOCATION, __func__, "Must be a rational.");
+      return coe * radicand;
+    }
   };
   template <typename U>
   std::ostream &
@@ -417,9 +444,9 @@ namespace symxx
       os << i.coe << "(";
 
     if (i.index != 2)
-      os << "(" << i.index << "g" << i.radicand << ")";
+      os << "_" << i.index << "√" << i.radicand;
     else
-      os << "g" << i.radicand;
+      os << "√" << i.radicand;
 
     if (i.coe != 1)
       os << ")";

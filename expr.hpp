@@ -34,14 +34,20 @@ namespace symxx
 
   private:
     Radical<T> coe;
-    std::vector<std::string> symbols;
+    std::map<std::string, Rational<T>> symbols;
     Environment<T> env;
 
   public:
     Term(Radical<T> c,
-         std::vector<std::string> u = {},
+         const std::map<std::string, Rational<T>> &u = {},
          Environment<T> e = nullptr)
         : coe(c), symbols(u), env(e)
+    {
+      reduct();
+    }
+    Term(Radical<T> c,
+         const std::string &sym)
+        : coe(c), symbols({{sym, 1}}), env(nullptr)
     {
       reduct();
     }
@@ -57,9 +63,23 @@ namespace symxx
     {
       auto a = get_symbols();
       auto b = t.get_symbols();
-      if (a == b)
+      Rational<T> aindex = 0;
+      Rational<T> bindex = 0;
+      for (auto &r : a)
+        aindex += r.second;
+      for (auto &r : b)
+        bindex += r.second;
+
+      if (aindex == bindex)
         return coe < t.coe;
-      return a < b;
+      else
+      {
+        if (aindex == 0 || bindex != 0)
+          return false;
+        else if (aindex != 0 || bindex == 0)
+          return true;
+      }
+      return aindex < bindex;
     }
     bool operator==(const Term &t) const
     {
@@ -67,7 +87,14 @@ namespace symxx
     }
     Term &operator*=(const Term &t)
     {
-      symbols.insert(symbols.cend(), t.symbols.cbegin(), t.symbols.cend());
+      for (auto &r : t.symbols)
+      {
+        auto it = symbols.find(r.first);
+        if (it == symbols.end())
+          symbols.insert(r);
+        else
+          it->second += r.second;
+      }
       coe *= t.coe;
       reduct();
       return *this;
@@ -90,7 +117,40 @@ namespace symxx
       tm /= t;
       return tm;
     }
-    Term opposite() const { return {coe.opposite(), symbols}; }
+    Term &operator^=(const Rational<T> &t)
+    {
+      coe ^= t;
+      for (auto &r : symbols)
+        r.second *= t;
+      reduct();
+      return *this;
+    }
+    Term operator^(const Rational<T> &t)
+    {
+      auto tm = *this;
+      tm ^= t;
+      return tm;
+    }
+    Term opposite() const { return {coe.opposite(), symbols, env}; }
+    template <typename U>
+    U to() const
+    {
+      if (!get_symbols().empty())
+        throw Error(SYMXX_ERROR_LOCATION, __func__, "Term must not have symbols.");
+      return get_coe().template to<U>();
+    }
+    Radical<T> eval() const
+    {
+      if (!get_symbols().empty())
+        throw Error(SYMXX_ERROR_LOCATION, __func__, "Term must not have symbols.");
+      return get_coe();
+    }
+    std::unique_ptr<Radical<T>> try_eval() const
+    {
+      if (!get_symbols().empty())
+        return nullptr;
+      return std::make_unique<Radical<T>>(get_coe());
+    }
     bool is_positive() const { return get_coe() > 0; }
     bool is_equivalent_with(const Term &t) const
     {
@@ -102,7 +162,13 @@ namespace symxx
         return coe;
       auto a = coe;
       for (auto &r : *env)
-        a *= (r.second ^ std::count(symbols.cbegin(), symbols.cend(), r.first));
+      {
+        auto it = symbols.find(r.first);
+        if (it == symbols.end())
+          a *= r.second;
+        else
+          a *= r.second ^ it->second;
+      }
       return a;
     }
     auto get_symbols() const
@@ -110,17 +176,51 @@ namespace symxx
       if (env == nullptr)
         return symbols;
       auto a = symbols;
-      a.erase(
-          std::remove_if(a.begin(),
-                         a.end(),
-                         [this](auto &&i)
-                         { return env->find(i) != env->end(); }),
-          a.end());
+      for (auto &r : *env)
+      {
+        auto it = a.find(r.first);
+        if (it != a.end())
+          a.erase(it);
+      }
       return a;
     }
-    void reduct() { std::sort(symbols.begin(), symbols.end()); }
+    void reduct()
+    {
+      for (auto it = symbols.begin(); it != symbols.end();)
+      {
+        if (it->second == 0)
+          it = symbols.erase(it);
+        else
+          ++it;
+      }
+    }
   };
-
+  template <typename T>
+  std::vector<std::vector<T>> divide2(T n)
+  {
+    std::vector<std::vector<T>> ret;
+    for (T i = 0; i < n + 1; ++i)
+      ret.push_back({i, n - i});
+    return ret;
+  }
+  template <typename T>
+  std::vector<std::vector<T>> divide(T n, T ng)
+  {
+    if (ng == 2)
+      return divide2(n);
+    std::vector<std::vector<T>> ret;
+    auto tmp = divide2(n);
+    for (auto &r : tmp)
+    {
+      auto t = divide(r[1], ng - 1);
+      for (auto &a : t)
+      {
+        ret.push_back({r[0]});
+        ret.back().insert(ret.back().end(), a.begin(), a.end());
+      }
+    }
+    return ret;
+  }
   template <typename T>
   class Poly
   {
@@ -144,9 +244,13 @@ namespace symxx
     }
     Poly operator+(const Poly &i) const
     {
-      auto a = *this;
-      a += i;
-      return a;
+      auto a = try_eval();
+      auto b = i.try_eval();
+      if (a != nullptr && b != nullptr)
+        return Poly{Term<T>{*a + *b}};
+      auto p = *this;
+      p += i;
+      return p;
     }
     Poly &operator-=(const Poly &i)
     {
@@ -156,6 +260,10 @@ namespace symxx
     }
     Poly operator-(const Poly &i) const
     {
+      auto a = try_eval();
+      auto b = i.try_eval();
+      if (a != nullptr && b != nullptr)
+        return Poly{Term<T>{*a - *b}};
       auto p = *this;
       p -= i;
       return p;
@@ -174,9 +282,13 @@ namespace symxx
     }
     Poly operator*(const Poly &i) const
     {
-      Poly a = *this;
-      a *= i;
-      return a;
+      auto a = try_eval();
+      auto b = i.try_eval();
+      if (a != nullptr && b != nullptr)
+        return Poly{Term<T>{*a * *b}};
+      Poly p = *this;
+      p *= i;
+      return p;
     }
     Poly &operator/=(const Radical<T> &i)
     {
@@ -187,26 +299,59 @@ namespace symxx
     }
     Poly operator/(const Radical<T> &i) const
     {
+      auto a = try_eval();
+      auto b = i.try_eval();
+      if (a != nullptr && b != nullptr)
+        return Poly{Term<T>{*a / *b}};
       auto p = *this;
       p /= i;
       return p;
     }
-    Poly &operator^=(const std::make_unsigned_t<T> &i)
+    Poly &operator^=(const Rational<T> &i)
     {
       if (i == 0)
       {
         *this = {Term<T>(1)};
         return *this;
       }
-      auto p = *this;
-      for (int j = 0; j < i - 1; ++j)
-        *this *= p;
-      reduct();
+      else if (i == 1)
+        return *this;
+      else if (poly.size() == 1)
+      {
+        poly[0] ^= i;
+        return *this;
+      }
+
+      std::vector<Term<T>> res;
+      using pT = std::make_unsigned_t<T>;
+      if (!i.is_int())
+        throw Error(SYMXX_ERROR_LOCATION, __func__, "Must be a int.");
+      auto avecvec = divide(i.to_t(), static_cast<T>(poly.size()));
+      pT i_factorial = 1;
+      for (pT t = 1; t <= i.to_t(); ++t)
+        i_factorial *= t;
+      for (auto &avec : avecvec)
+      {
+        Rational<T> q = i_factorial;
+        for (auto &x : avec)
+        {
+          for (pT t = 1; t <= x; ++t)
+            q /= t;
+        }
+        Term<T> tmp{q};
+        for (pT k = 0; k < poly.size(); ++k)
+          tmp *= poly[k] ^ avec[k];
+        res.emplace_back(tmp);
+      }
+      poly = std::move(res);
       return *this;
     }
 
-    Poly operator^(const std::make_unsigned_t<T> &i) const
+    Poly operator^(const Rational<T> &i) const
     {
+      auto a = try_eval();
+      if (a != nullptr)
+        return Poly{Term<T>{*a ^ i}};
       auto p = *this;
       p ^= i;
       return p;
@@ -218,6 +363,40 @@ namespace symxx
         r = r.opposite();
       return a;
     }
+    template <typename U>
+    U to() const
+    {
+      U result = 0;
+      for (auto &r : poly)
+        result += r.template to<U>();
+      return result;
+    }
+    Radical<T> eval() const
+    {
+      Radical<T> result = 0;
+      for (auto &r : poly)
+        result += r.eval();
+      return result;
+    }
+    std::unique_ptr<Radical<T>> try_eval() const
+    {
+      std::unique_ptr<Radical<T>> result = std::make_unique<Radical<T>>(0);
+      for (auto &r : poly)
+      {
+        auto p = r.try_eval();
+        if (p != nullptr)
+        {
+          *result += *p;
+        }
+        else
+          return nullptr;
+      }
+      return result;
+    }
+    bool operator==(const Poly &p)
+    {
+      return poly == p.poly;
+    }
     void set_env(Environment<T> e)
     {
       for (auto &r : poly)
@@ -225,8 +404,7 @@ namespace symxx
     }
     void reduct()
     {
-      std::sort(poly.begin(), poly.end(), [](auto &&x1, auto &&x2)
-                { return !(x1 < x2); });
+      std::sort(poly.begin(), poly.end());
       for (auto it = poly.begin(); it < poly.end();)
       {
         if ((it + 1) < poly.end() && it->is_equivalent_with(*(it + 1)))
@@ -263,6 +441,11 @@ namespace symxx
     Environment<T> env;
 
   public:
+    Frac(const Radical<T> &n)
+        : numerator({Term<T>{n}}), denominator({Term<T>{1}}), env(nullptr)
+    {
+      reduct();
+    }
     Frac(const Poly<T> &n)
         : numerator(n), denominator({Term<T>{1}}), env(nullptr)
     {
@@ -285,7 +468,7 @@ namespace symxx
     {
       if (denominator == t.denominator)
       {
-        numerator.insert(numerator.cend(), t.numerator.cbegin(), t.numerator.cend());
+        numerator += t.numerator;
         return *this;
       }
       else
@@ -301,9 +484,13 @@ namespace symxx
 
     Frac operator+(const Frac &t) const
     {
-      auto a = *this;
-      a += t;
-      return a;
+      auto a = try_eval();
+      auto b = t.try_eval();
+      if (a != nullptr && b != nullptr)
+        return *a + *b;
+      auto c = *this;
+      c += t;
+      return c;
     }
     Frac &operator-=(const Frac &t)
     {
@@ -313,9 +500,13 @@ namespace symxx
     }
     Frac operator-(const Frac &t) const
     {
-      auto a = *this;
-      a -= t;
-      return a;
+      auto a = try_eval();
+      auto b = t.try_eval();
+      if (a != nullptr && b != nullptr)
+        return *a - *b;
+      auto c = *this;
+      c -= t;
+      return c;
     }
     Frac &operator*=(const Frac &t)
     {
@@ -328,9 +519,13 @@ namespace symxx
     }
     Frac operator*(const Frac &t) const
     {
-      auto a = *this;
-      a *= t;
-      return a;
+      auto a = try_eval();
+      auto b = t.try_eval();
+      if (a != nullptr && b != nullptr)
+        return *a * *b;
+      auto c = *this;
+      c *= t;
+      return c;
     }
     Frac &operator/=(const Frac &t)
     {
@@ -341,11 +536,15 @@ namespace symxx
     }
     Frac operator/(const Frac &t) const
     {
-      auto a = *this;
-      a /= t;
-      return a;
+      auto a = try_eval();
+      auto b = t.try_eval();
+      if (a != nullptr && b != nullptr)
+        return *a / *b;
+      auto c = *this;
+      c /= t;
+      return c;
     }
-    Frac &operator^=(const std::make_unsigned_t<T> &i)
+    Frac &operator^=(const Rational<T> &i)
     {
       numerator ^= i;
       denominator ^= i;
@@ -353,11 +552,14 @@ namespace symxx
       return *this;
     }
 
-    Frac operator^(const std::make_unsigned_t<T> &i) const
+    Frac operator^(const Rational<T> &i) const
     {
-      auto p = *this;
-      p ^= i;
-      return p;
+      auto a = try_eval();
+      if (a != nullptr)
+        return *a ^ i;
+      auto c = *this;
+      c ^= i;
+      return c;
     }
     Frac set_var(const std::map<std::string, Radical<T>> &val) const
     {
@@ -370,7 +572,23 @@ namespace symxx
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
       return ret;
     }
-
+    template <typename U>
+    U to() const
+    {
+      return (numerator.template to<U>() / denominator.template to<U>());
+    }
+    Radical<T> eval() const
+    {
+      return (numerator.eval() / denominator.eval());
+    }
+    std::unique_ptr<Radical<T>> try_eval() const
+    {
+      auto np = numerator.try_eval();
+      auto dp = denominator.try_eval();
+      if (np == nullptr || dp == nullptr)
+        return nullptr;
+      return std::make_unique<Radical<T>>(*np / *dp);
+    }
     void reduct()
     {
       numerator.reduct();
@@ -383,7 +601,8 @@ namespace symxx
       for (auto &r : denominator.get_poly())
         r *= Term<T>{den, {}, env};
 
-      T g = gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(), denominator.get_poly()[0].get_coe().get_coe().to_t());
+      T g = gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
+                denominator.get_poly()[0].get_coe().get_coe().to_t());
       for (auto &n : numerator.get_poly())
       {
         for (std::size_t i = 1; i < denominator.get_poly().size(); ++i)
@@ -417,26 +636,26 @@ namespace symxx
       return os;
     }
     if (coe != 1 || symbols.empty())
-      os << coe;
+    {
+      if (coe == -1 && !symbols.empty())
+        os << "-";
+      else
+        os << coe;
+    }
     int exp = 1;
     for (auto it = symbols.begin(); it != symbols.end(); ++it)
     {
-      if (std::next(it) != symbols.end() && *it == *std::next(it))
-      {
-        exp++;
-        continue;
-      }
+      auto exp = it->second;
       if (exp != 1)
       {
-        os << "(" << *it << "^" << exp << ")";
-        exp = 1;
+        os << "(" << it->first << "^" << exp << ")";
       }
       else
       {
-        if (it->size() != 1)
-          os << "(" << *it << ")";
+        if (it->first.size() != 1)
+          os << "(" << it->first << ")";
         else
-          os << *it;
+          os << it->first;
       }
     }
     return os;
@@ -455,7 +674,7 @@ namespace symxx
     bool first = true;
     for (auto it = i.poly.begin(); it < i.poly.end(); ++it)
     {
-      if (it->get_coe() == 0)
+      if (it->get_coe() == 0 && cnt > 0)
         continue;
       if (first)
       {
