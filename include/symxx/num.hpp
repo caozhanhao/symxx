@@ -318,7 +318,7 @@ namespace symxx
         index *= p.get_denominator();
         auto cb = coe ^ p.get_numerator();
         coe = 1;
-        *this *= Radical<T>{Rational<T>{1}, cb, p.get_denominator()};
+        *this *= Radical<T>{Rational<T>{1}, cb, static_cast<IndexT>(p.get_denominator())};
       }
       reduct();
       return *this;
