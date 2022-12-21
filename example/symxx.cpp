@@ -24,6 +24,7 @@ using IntType = long long int;
 int main()
 {
   std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
+  std::map<std::string, Real<IntType>> vars;
   std::string str, cmd, body;
   while (true)
   {
@@ -91,6 +92,40 @@ int main()
         std::cout << "Function: " << name << "(" << argstr << ") = " << func << std::endl;
         funcs[name] = {args, func};
       }
+      else if (cmd == "var")
+      {
+        auto eq = body.find_first_of("=");
+        if (eq == std::string::npos)
+          throw Error(SYMXX_ERROR_LOCATION, __func__, "Expected '='.");
+        size_t i = 0;
+        std::string temp;
+        for (; i < eq; i++)
+        {
+          if (std::isspace(body[i]))
+            continue;
+          temp += body[i];
+        }
+        if (temp.empty())
+          throw Error(SYMXX_ERROR_LOCATION, __func__, "Variable's name can not be empty.");
+        vars[temp] = Real<IntType>{Rational<IntType>{body.substr(i + 1)}};
+      }
+      else if (cmd == "print")
+      {
+        auto itf = funcs.find(body);
+        auto itv = vars.find(body);
+        if (itf != funcs.end())
+        {
+          std::string argstr;
+          for (auto &a : std::get<0>(itf->second))
+            argstr += a + ",";
+          if (!argstr.empty())
+            argstr.pop_back();
+          std::cout << "Function: " << body << "(" << argstr << ") = "
+                    << std::get<1>(itf->second) << std::endl;
+        }
+        if (itv != vars.end())
+          std::cout << "Variable: " << body << " = " << itv->second << std::endl;
+      }
       else if (cmd == "quit")
         return 0;
       else
@@ -107,6 +142,13 @@ int main()
           std::string temp;
           std::vector<Real<IntType>> args;
           size_t i = lp + 1;
+          auto get_real = [&vars](const std::string str) -> Real<IntType>
+          {
+            auto it = vars.find(str);
+            if (it == vars.end())
+              return Real<IntType>{Rational<IntType>{str}};
+            return it->second;
+          };
           for (; i < rp; i++)
           {
             if (std::isspace(body[i]))
@@ -115,14 +157,14 @@ int main()
             {
               if (temp.empty())
                 throw Error(SYMXX_ERROR_LOCATION, __func__, "Argument can not be \"\".");
-              args.emplace_back(Real<IntType>{Rational<IntType>{temp}});
+              args.emplace_back(get_real(temp));
               temp = "";
               continue;
             }
             temp += body[i];
           }
           if (!temp.empty())
-            args.emplace_back(Real<IntType>{Rational<IntType>{temp}});
+            args.emplace_back(get_real(temp));
           auto fargs = std::get<0>(it->second);
           if (args.size() != fargs.size())
             throw Error(SYMXX_ERROR_LOCATION, __func__, "Expected " + std::to_string(fargs.size()) + " arguments");

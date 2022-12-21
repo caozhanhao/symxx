@@ -169,7 +169,7 @@ namespace symxx
       {
         auto it = env->find(r.first);
         if (it != env->end())
-          a *= it->second;
+          a *= (it->second ^ r.second);
       }
       return a;
     }
@@ -450,6 +450,7 @@ namespace symxx
         {
           *it = {it->get_coe() + (it + 1)->get_coe(), it->get_symbols(), it->get_env()};
           it = poly.erase(it + 1);
+          --it;
         }
         else
           ++it;

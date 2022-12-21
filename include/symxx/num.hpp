@@ -18,6 +18,7 @@
 #include <limits>
 #include <numeric>
 #include <ostream>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 namespace symxx
@@ -57,16 +58,27 @@ namespace symxx
     }
     Rational(const std::string &n)
     {
-      auto k = n.find('/');
-      if (k == std::string::npos)
+      try
       {
-        numerator = std::stoll(n);
-        denominator = 1;
+        auto k = n.find('/');
+        if (k == std::string::npos)
+        {
+          numerator = std::stoll(n);
+          denominator = 1;
+        }
+        else
+        {
+          numerator = std::stoll(n.substr(0, k));
+          denominator = std::stoll(n.substr(k + 1));
+        }
       }
-      else
+      catch (std::invalid_argument &)
       {
-        numerator = std::stoll(n.substr(0, k));
-        denominator = std::stoll(n.substr(k + 1));
+        throw Error(SYMXX_ERROR_LOCATION, __func__, "Invaild string.");
+      }
+      catch (std::out_of_range &)
+      {
+        throw Error(SYMXX_ERROR_LOCATION, __func__, "The number is out of range.");
       }
       if (denominator == 0)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
