@@ -232,6 +232,7 @@ namespace symxx
         : index(1), radicand(1), coe(c) { reduce(); }
     Real(const T &c)
         : index(1), radicand(1), coe(c) { reduce(); }
+    Real() : index(1), radicand(1), coe(0) {}
     bool is_equivalent_with(const Real &t) const
     {
       if (radicand == t.radicand && radicand == 1)

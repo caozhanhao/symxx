@@ -65,6 +65,8 @@ namespace symxx
     NodeType node_type;
 
   public:
+    ExprNode()
+      :node_type(NodeType::FRAC), val(Frac<T>{0}){}
     ExprNode(char op, ExprNode *lhs, ExprNode *rhs)
         : val(OpData{op, lhs, rhs}), node_type(NodeType::OP) {}
     ExprNode(const Frac<T> &frac) : val(frac), node_type(NodeType::FRAC) {}

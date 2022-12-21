@@ -165,13 +165,11 @@ namespace symxx
       if (env == nullptr)
         return coe;
       auto a = coe;
-      for (auto &r : *env)
+      for (auto &r : symbols)
       {
-        auto it = symbols.find(r.first);
-        if (it == symbols.end())
-          a *= r.second;
-        else
-          a *= r.second ^ it->second;
+        auto it = env->find(r.first);
+        if (it != env->end())
+          a *= it->second;
       }
       return a;
     }
@@ -452,7 +450,6 @@ namespace symxx
         {
           *it = {it->get_coe() + (it + 1)->get_coe(), it->get_symbols(), it->get_env()};
           it = poly.erase(it + 1);
-          --it;
         }
         else
           ++it;

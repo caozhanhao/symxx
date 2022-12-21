@@ -23,7 +23,7 @@
 #include <map>
 namespace symxx
 {
-  enum class TokenType
+  enum class ExprTokenType
   {
     OP,
     LPAREN,
@@ -32,35 +32,35 @@ namespace symxx
     SYMBOL
   };
   template <typename T>
-  class Token
+  class ExprToken
   {
   private:
     std::variant<char, Frac<T>> val;
-    TokenType token_type;
+    ExprTokenType ExprToken_type;
 
   public:
     template <typename U>
-    Token(TokenType t, U &&u)
-        : val(std::forward<U>(u)), token_type(t) {}
+    ExprToken(ExprTokenType t, U &&u)
+        : val(std::forward<U>(u)), ExprToken_type(t) {}
 
-    auto type() const { return token_type; }
+    auto type() const { return ExprToken_type; }
     auto frac() const { return std::get<Frac<T>>(val); }
     auto ch() const { return std::get<char>(val); }
   };
   template <typename T>
-  class Parser
+  class ExprParser
   {
   private:
     std::string raw;
     std::size_t pos;
-    Token<T> curr;
+    ExprToken<T> curr;
     bool parsing_end;
     bool added_mul;
     bool parsing_negative;
 
   public:
-    Parser(const std::string &r)
-        : raw(r), pos(0), curr(TokenType::OP, '\0'), parsing_end(false), added_mul(false), parsing_negative(false) {}
+    ExprParser(const std::string &r)
+        : raw(r), pos(0), curr(ExprTokenType::OP, '\0'), parsing_end(false), added_mul(false), parsing_negative(false) {}
 
     ExprNode<T> parse()
     {
@@ -84,32 +84,32 @@ namespace symxx
         if (parsing_end)
           break;
 
-        if (curr.type() == TokenType::OP)
+        if (curr.type() == ExprTokenType::OP)
         {
           while (!op.empty() && great(op.top(), curr.ch()))
             handle();
           op.push(curr.ch());
           continue;
         }
-        else if (curr.type() == TokenType::LPAREN)
+        else if (curr.type() == ExprTokenType::LPAREN)
         {
           op.push('(');
           continue;
         }
-        else if (curr.type() == TokenType::RPAREN)
+        else if (curr.type() == ExprTokenType::RPAREN)
         {
           while (!nodes.empty() && op.top() != '(')
             handle();
           op.pop();
           continue;
         }
-        else if (curr.type() == TokenType::DIGIT || curr.type() == TokenType::SYMBOL)
+        else if (curr.type() == ExprTokenType::DIGIT || curr.type() == ExprTokenType::SYMBOL)
         {
           nodes.emplace(new ExprNode<T>(curr.frac()));
           continue;
         }
         else
-          throw Error(SYMXX_ERROR_LOCATION, __func__, "Unexpected token.");
+          throw Error(SYMXX_ERROR_LOCATION, __func__, "Unexpected ExprToken.");
       }
       while (!op.empty())
         handle();
@@ -121,9 +121,9 @@ namespace symxx
   private:
     void next()
     {
-      curr = get_token();
+      curr = get_ExprToken();
     }
-    Token<T> get_token()
+    ExprToken<T> get_ExprToken()
     {
       while (pos < raw.size() && std::isspace(raw[pos]))
         ++pos;
@@ -138,9 +138,9 @@ namespace symxx
         if (ch == '*' && pos + 1 < raw.size() && raw[pos + 1] == '*')
         {
           pos += 2;
-          return {TokenType::OP, '^'};
+          return {ExprTokenType::OP, '^'};
         }
-        else if (ch == '-' && (curr.type() == TokenType::LPAREN || (curr.type() == TokenType::OP && curr.ch() == '\0')))
+        else if (ch == '-' && (curr.type() == ExprTokenType::LPAREN || (curr.type() == ExprTokenType::OP && curr.ch() == '\0')))
         {
           parsing_negative = true;
           pos++;
@@ -149,27 +149,27 @@ namespace symxx
         else
         {
           ++pos;
-          return {TokenType::OP, ch};
+          return {ExprTokenType::OP, ch};
         }
       }
       else if (ch == '(')
       {
-        if ((curr.type() == TokenType::SYMBOL || curr.type() == TokenType::DIGIT || curr.type() == TokenType::RPAREN) && !added_mul)
+        if ((curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT || curr.type() == ExprTokenType::RPAREN) && !added_mul)
         {
           added_mul = true;
-          return {TokenType::OP, '*'};
+          return {ExprTokenType::OP, '*'};
         }
         else
         {
           ++pos;
           added_mul = false;
-          return {TokenType::LPAREN, '('};
+          return {ExprTokenType::LPAREN, '('};
         }
       }
       else if (ch == ')')
       {
         ++pos;
-        return {TokenType::RPAREN, ')'};
+        return {ExprTokenType::RPAREN, ')'};
       }
 
       std::string temp;
@@ -181,32 +181,32 @@ namespace symxx
           ++pos;
         } while (pos < raw.size() && std::isdigit(raw[pos]));
         if (!parsing_negative)
-          return {TokenType::DIGIT, Frac<T>{Rational<T>{temp}}};
+          return {ExprTokenType::DIGIT, Frac<T>{Rational<T>{temp}}};
         else
         {
           parsing_negative = false;
-          return {TokenType::DIGIT, Frac<T>{Rational<T>{temp}}.opposite()};
+          return {ExprTokenType::DIGIT, Frac<T>{Rational<T>{temp}}.opposite()};
         }
       }
       else if (std::isalpha(ch))
       {
-        if ((curr.type() == TokenType::SYMBOL || curr.type() == TokenType::DIGIT ||
-             curr.type() == TokenType::RPAREN) &&
+        if ((curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT ||
+             curr.type() == ExprTokenType::RPAREN) &&
             !added_mul)
         {
           added_mul = true;
-          return {TokenType::OP, '*'};
+          return {ExprTokenType::OP, '*'};
         }
         else
         {
           ++pos;
           added_mul = false;
           if (!parsing_negative)
-            return {TokenType::SYMBOL, Frac<T>{{{Term<T>{1, std::string(1, ch)}}}}};
+            return {ExprTokenType::SYMBOL, Frac<T>{{{Term<T>{1, std::string(1, ch)}}}}};
           else
           {
             parsing_negative = false;
-            return {TokenType::SYMBOL, Frac<T>{{{Term<T>{-1, std::string(1, ch)}}}}};
+            return {ExprTokenType::SYMBOL, Frac<T>{{{Term<T>{-1, std::string(1, ch)}}}}};
           }
         }
       }
