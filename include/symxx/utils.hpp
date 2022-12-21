@@ -14,7 +14,7 @@
 #ifndef SYMXX_UTILS_HPP
 #define SYMXX_UTILS_HPP
 #include "num.hpp"
-#include "expr.hpp"
+#include "frac.hpp"
 #include "error.hpp"
 #include <utility>
 #include <map>

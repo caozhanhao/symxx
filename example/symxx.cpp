@@ -29,7 +29,8 @@ int main()
       std::getline(std::cin, str);
       Parser<IntType> p{str};
       auto a = p.parse();
-      std::cout << a << std::endl;
+      a.reduce();
+      std::cout << a.set_var({{"x", 1}}) << std::endl;
     }
     catch (Error &e)
     {

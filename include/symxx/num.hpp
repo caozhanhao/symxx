@@ -49,7 +49,7 @@ namespace symxx
     {
       if (denominator == 0)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
-      reduct();
+      reduce();
     }
     Rational()
         : numerator(0), denominator(1)
@@ -83,7 +83,7 @@ namespace symxx
       denominator *= i.denominator;
       if (denominator == 0)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
-      reduct();
+      reduce();
       return *this;
     }
     Rational operator-(const Rational &i) const
@@ -109,7 +109,7 @@ namespace symxx
       denominator *= i.denominator;
       if (denominator == 0)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
-      reduct();
+      reduce();
       return *this;
     }
     Rational operator/(const Rational &i) const
@@ -121,7 +121,7 @@ namespace symxx
     Rational &operator/=(const Rational &i)
     {
       *this *= i.reciprocate();
-      reduct();
+      reduce();
       return *this;
     }
     Rational operator^(const Rational<T> &p) const
@@ -136,7 +136,7 @@ namespace symxx
       denominator = static_cast<T>(std::pow(denominator, p.template to<double>()));
       if (denominator == 0)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
-      reduct();
+      reduce();
       return *this;
     }
     bool operator<(const Rational &r) const
@@ -163,7 +163,7 @@ namespace symxx
       return {-numerator, denominator};
     }
     Rational reciprocate() const { return {denominator, numerator}; }
-    void reduct()
+    void reduce()
     {
       T g = gcd(std::abs(numerator), std::abs(denominator));
       numerator /= g;
@@ -214,10 +214,10 @@ namespace symxx
   }
 
   template <typename T>
-  class Radical
+  class Real
   {
     template <typename U>
-    friend std::ostream &operator<<(std::ostream &os, const Radical<U> &i);
+    friend std::ostream &operator<<(std::ostream &os, const Real<U> &i);
 
   private:
     using IndexT = std::make_unsigned_t<T>;
@@ -226,13 +226,13 @@ namespace symxx
     Rational<T> coe;
 
   public:
-    Radical(const Rational<T> &c, const Rational<T> &r, IndexT i)
-        : index(i), radicand(r), coe(c) { reduct(); }
-    Radical(const Rational<T> &c)
-        : index(1), radicand(1), coe(c) { reduct(); }
-    Radical(const T &c)
-        : index(1), radicand(1), coe(c) { reduct(); }
-    bool is_equivalent_with(const Radical &t) const
+    Real(const Rational<T> &c, const Rational<T> &r, IndexT i)
+        : index(i), radicand(r), coe(c) { reduce(); }
+    Real(const Rational<T> &c)
+        : index(1), radicand(1), coe(c) { reduce(); }
+    Real(const T &c)
+        : index(1), radicand(1), coe(c) { reduce(); }
+    bool is_equivalent_with(const Real &t) const
     {
       if (radicand == t.radicand && radicand == 1)
         return true;
@@ -240,72 +240,72 @@ namespace symxx
         return true;
       return (radicand == t.radicand && index == t.index);
     }
-    Radical &operator+=(const Radical &r)
+    Real &operator+=(const Real &r)
     {
       if (!is_equivalent_with(r))
         throw Error(SYMXX_ERROR_LOCATION, __func__, "radicand and index must be the same.");
       coe += r.coe;
-      reduct();
+      reduce();
       return *this;
     }
-    Radical operator+(const Radical &r) const
+    Real operator+(const Real &r) const
     {
       auto a = *this;
       a += r;
       return a;
     }
 
-    Radical &operator-=(const Radical &r)
+    Real &operator-=(const Real &r)
     {
       *this += r.opposite();
-      reduct();
+      reduce();
       return *this;
     }
-    Radical operator-(const Radical &r) const
+    Real operator-(const Real &r) const
     {
       auto a = *this;
       a -= r;
       return a;
     }
 
-    Radical &operator*=(const Radical &r)
+    Real &operator*=(const Real &r)
     {
       radicand ^= r.index;
       radicand *= r.radicand ^ index;
       index *= r.index;
       coe *= r.coe;
-      reduct();
+      reduce();
       return *this;
     }
-    Radical operator*(const Radical &r) const
+    Real operator*(const Real &r) const
     {
       auto a = *this;
       a *= r;
       return a;
     }
 
-    Radical &operator/=(const Radical &r)
+    Real &operator/=(const Real &r)
     {
       radicand ^= r.index;
       radicand *= r.radicand.reciprocate() ^ index;
       coe /= r.coe;
       index *= r.index;
-      reduct();
+      reduce();
       return *this;
     }
-    Radical operator/(const Radical &r) const
+    Real operator/(const Real &r) const
     {
       auto a = *this;
       a /= r;
       return a;
     }
-    Radical operator^(const Rational<T> &p) const
+    Real operator^(const Rational<T> &p) const
     {
       auto a = *this;
       a ^= p;
       return a;
     }
-    Radical &operator^=(const Rational<T> &p)
+    Real &operator^=(const Rational<T> &p)
     {
       if (p.is_int())
       {
@@ -318,9 +318,9 @@ namespace symxx
         index *= p.get_denominator();
         auto cb = coe ^ p.get_numerator();
         coe = 1;
-        *this *= Radical<T>{Rational<T>{1}, cb, static_cast<IndexT>(p.get_denominator())};
+        *this *= Real<T>{Rational<T>{1}, cb, static_cast<IndexT>(p.get_denominator())};
       }
-      reduct();
+      reduce();
       return *this;
     }
     Rational<T> &get_coe() const
@@ -331,20 +331,20 @@ namespace symxx
     {
       return coe;
     }
-    bool operator<(const Radical &r) const
+    bool operator<(const Real &r) const
     {
       return coe * (radicand ^ r.index) < r.coe * (r.radicand * index);
     }
-    bool operator==(const Radical &r) const
+    bool operator==(const Real &r) const
     {
       return coe == r.coe && radicand == r.radicand && index == r.index;
     }
-    bool operator!=(const Radical &r) const { return !(*this == r); }
-    bool operator>(const Radical &r) const
+    bool operator!=(const Real &r) const { return !(*this == r); }
+    bool operator>(const Real &r) const
     {
       return !(*this < r);
     }
-    void reduct()
+    void reduce()
     {
       T num = radicand.get_numerator();
       T numbak = num;
@@ -403,7 +403,7 @@ namespace symxx
       if (radicand == 1)
         index = 1;
     }
-    Radical opposite() const { return {coe.opposite(), radicand, index}; }
+    Real opposite() const { return {coe.opposite(), radicand, index}; }
     bool is_rational()
     {
       return coe == 0 || radicand == 1 || radicand == 0 || index == 1 || index == 0;
@@ -423,7 +423,7 @@ namespace symxx
   };
   template <typename U>
   std::ostream &
-  operator<<(std::ostream &os, const Radical<U> &i)
+  operator<<(std::ostream &os, const Real<U> &i)
   {
     if (i.coe == 0)
     {
@@ -454,9 +454,9 @@ namespace symxx
   }
 
   template <typename T>
-  Radical<T> nth_root(std::make_unsigned_t<T> n, Rational<T> q)
+  Real<T> nth_root(std::make_unsigned_t<T> n, Rational<T> q)
   {
-    return Radical<T>{1, q, n};
+    return Real<T>{1, q, n};
   }
 }
 #endif

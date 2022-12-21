@@ -14,6 +14,7 @@
 #ifndef SYMXX_PARSER_HPP
 #define SYMXX_PARSER_HPP
 #include "num.hpp"
+#include "frac.hpp"
 #include "expr.hpp"
 #include "error.hpp"
 #include <string>
@@ -61,40 +62,20 @@ namespace symxx
     Parser(const std::string &r)
         : raw(r), pos(0), curr(TokenType::OP, '\0'), parsing_end(false), added_mul(false), parsing_negative(false) {}
 
-    Frac<T> parse()
+    ExprNode<T> parse()
     {
       pos = 0;
-      std::stack<Frac<T>> num;
+      std::stack<ExprNode<T> *> nodes;
       std::stack<char> op;
-      auto handle = [&num, &op]()
+      auto handle = [&nodes, &op]()
       {
-        if (num.size() < 2 || op.empty())
+        if (nodes.size() < 2 || op.empty())
           throw Error(SYMXX_ERROR_LOCATION, __func__, "Invaild string.");
-        auto lhs = num.top();
-        num.pop();
-        auto rhs = num.top();
-        num.pop();
-        switch (op.top())
-        {
-        case '+':
-          num.push(rhs + lhs);
-          break;
-        case '-':
-          num.push(rhs - lhs);
-          break;
-        case '*':
-          num.push(rhs * lhs);
-          break;
-        case '/':
-          num.push(rhs / lhs);
-          break;
-        case '^':
-          num.push(rhs ^ (lhs.eval().template to<Rational<T>>()));
-          break;
-        default:
-          throw Error(SYMXX_ERROR_LOCATION, __func__, "Unexpected token.");
-          break;
-        }
+        auto *rhs = nodes.top();
+        nodes.pop();
+        auto *lhs = nodes.top();
+        nodes.pop();
+        nodes.emplace(new ExprNode<T>(op.top(), lhs, rhs));
         op.pop();
       };
       while (true)
@@ -117,14 +98,14 @@ namespace symxx
         }
         else if (curr.type() == TokenType::RPAREN)
         {
-          while (!num.empty() && op.top() != '(')
+          while (!nodes.empty() && op.top() != '(')
             handle();
           op.pop();
           continue;
         }
         else if (curr.type() == TokenType::DIGIT || curr.type() == TokenType::SYMBOL)
         {
-          num.push(curr.frac());
+          nodes.emplace(new ExprNode<T>(curr.frac()));
           continue;
         }
         else
@@ -132,9 +113,9 @@ namespace symxx
       }
       while (!op.empty())
         handle();
-      if (num.size() != 1)
+      if (nodes.size() != 1)
         throw Error(SYMXX_ERROR_LOCATION, __func__, "Invaild string.");
-      return num.top();
+      return *nodes.top();
     }
 
   private:
@@ -209,7 +190,9 @@ namespace symxx
       }
       else if (std::isalpha(ch))
       {
-        if ((curr.type() == TokenType::SYMBOL || curr.type() == TokenType::DIGIT) && !added_mul)
+        if ((curr.type() == TokenType::SYMBOL || curr.type() == TokenType::DIGIT ||
+             curr.type() == TokenType::RPAREN) &&
+            !added_mul)
         {
           added_mul = true;
           return {TokenType::OP, '*'};
