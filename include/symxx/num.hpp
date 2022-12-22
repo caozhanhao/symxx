@@ -87,23 +87,27 @@ namespace symxx
       numerator = x * denominator;
       reduce();
     }
-    Rational(double x) : Rational(static_cast<long double>(x))
-    {
-    }
     Rational(const std::string &n)
     {
       try
       {
-        auto k = n.find('/');
-        if (k == std::string::npos)
+        if (n.find('.') != std::string::npos)
         {
-          numerator = std::stoll(n);
-          denominator = 1;
+          *this = Rational(std::stold(n));
         }
         else
         {
-          numerator = std::stoll(n.substr(0, k));
-          denominator = std::stoll(n.substr(k + 1));
+          auto k = n.find('/');
+          if (k == std::string::npos)
+          {
+            numerator = std::stoll(n);
+            denominator = 1;
+          }
+          else
+          {
+            numerator = std::stoll(n.substr(0, k));
+            denominator = std::stoll(n.substr(k + 1));
+          }
         }
       }
       catch (std::invalid_argument &)
@@ -313,8 +317,6 @@ namespace symxx
     Real(U c)
         : index(1), radicand(1), coe(c) { reduce(); }
     Real(long double c)
-        : index(1), radicand(1), coe(c) { reduce(); }
-    Real(double c)
         : index(1), radicand(1), coe(c) { reduce(); }
     Real() : index(1), radicand(1), coe(0) {}
     bool is_equivalent_with(const Real &t) const

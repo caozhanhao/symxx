@@ -35,19 +35,15 @@ void print_func(const std::string &name, const std::tuple<std::vector<std::strin
 void print_result(const ExprNode<IntType> &expr)
 {
   auto fp = expr.try_eval();
-  if (fp != nullptr)
+  if (fp != nullptr && fp->no_symbols())
   {
-    auto rp = fp->try_eval();
-    if (rp != nullptr)
-    {
-      if (!rp->is_rational() || rp->template to<Rational<IntType>>().get_denominator() != 1)
-        std::cout << expr << "≈" << ::symxx::dtoa(rp->template to<double>()) << std::endl;
-      else
-        std::cout
-            << *rp << std::endl;
-
-      return;
-    }
+    if (!fp->is_rational())
+      std::cout << expr << " ≈ " << ::symxx::dtoa(fp->template to<double>()) << std::endl;
+    else if (fp->template to<Rational<IntType>>().get_denominator() != 1)
+      std::cout << expr << " = " << ::symxx::dtoa(fp->template to<double>()) << std::endl;
+    else
+      std::cout << *fp << std::endl;
+    return;
   }
   std::cout << expr << std::endl;
 }
@@ -85,8 +81,10 @@ int main()
       {
         ExprParser<IntType> p{body};
         auto a = p.parse();
-        a.reduce();
-        print_result(a);
+        std::map<std::string, Real<IntType>> env;
+        for (auto &r : vars)
+          env[r.first] = r.second;
+        print_result(a.set_var(env));
       }
       else if (cmd == "func")
       {

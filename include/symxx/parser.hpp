@@ -179,7 +179,7 @@ namespace symxx
         {
           temp += raw[pos];
           ++pos;
-        } while (pos < raw.size() && std::isdigit(raw[pos]));
+        } while (pos < raw.size() && (std::isdigit(raw[pos]) || raw[pos] == '.'));
         if (!parsing_negative)
           return {ExprTokenType::DIGIT, Frac<T>{Rational<T>{temp}}};
         else

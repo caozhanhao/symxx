@@ -135,19 +135,19 @@ namespace symxx
     template <typename U>
     U to() const
     {
-      if (!get_symbols().empty())
+      if (!no_symbols())
         throw Error(SYMXX_ERROR_LOCATION, __func__, "Term must not have symbols.");
       return get_coe().template to<U>();
     }
     Real<T> eval() const
     {
-      if (!get_symbols().empty())
+      if (!no_symbols())
         throw Error(SYMXX_ERROR_LOCATION, __func__, "Term must not have symbols.");
       return get_coe();
     }
     std::unique_ptr<Real<T>> try_eval() const
     {
-      if (!get_symbols().empty())
+      if (!no_symbols())
         return nullptr;
       return std::make_unique<Real<T>>(get_coe());
     }
@@ -195,6 +195,14 @@ namespace symxx
         else
           ++it;
       }
+    }
+    bool no_symbols() const
+    {
+      return get_symbols().empty();
+    }
+    bool is_rational() const
+    {
+      return no_symbols() && get_coe().is_rational();
     }
   };
   template <typename U>
@@ -425,12 +433,32 @@ namespace symxx
         auto p = r.try_eval();
         if (p != nullptr)
         {
+          if (!result->is_equivalent_with(*p))
+            return nullptr;
           *result += *p;
         }
         else
           return nullptr;
       }
       return result;
+    }
+    bool no_symbols() const
+    {
+      for (auto &r : poly)
+      {
+        if (!r.no_symbols())
+          return false;
+      }
+      return true;
+    }
+    bool is_rational()
+    {
+      for (auto &r : poly)
+      {
+        if (!r.is_rational())
+          return false;
+      }
+      return true;
     }
     bool operator==(const Poly &p)
     {
@@ -652,6 +680,14 @@ namespace symxx
       reduce();
       if (denominator.is_zero())
         throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+    }
+    bool no_symbols() const
+    {
+      return numerator.no_symbols() && denominator.no_symbols();
+    }
+    bool is_rational()
+    {
+      return numerator.is_rational() && denominator.is_rational();
     }
     template <typename U>
     U to() const
