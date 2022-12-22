@@ -11,6 +11,7 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
+#include "symxx/dtoa.hpp"
 #include "symxx/expr.hpp"
 #include "symxx/num.hpp"
 #include "symxx/utils.hpp"
@@ -31,9 +32,29 @@ void print_func(const std::string &name, const std::tuple<std::vector<std::strin
   std::cout << "Function: " << name << "(" << argstr << ") = "
             << std::get<1>(func) << std::endl;
 }
+void print_result(const ExprNode<IntType> &expr)
+{
+  auto fp = expr.try_eval();
+  if (fp != nullptr)
+  {
+    auto rp = fp->try_eval();
+    if (rp != nullptr)
+    {
+      if (!rp->is_rational() || rp->template to<Rational<IntType>>().get_denominator() != 1)
+        std::cout << expr << "≈" << ::symxx::dtoa(rp->template to<double>()) << std::endl;
+      else
+        std::cout
+            << *rp << std::endl;
+
+      return;
+    }
+  }
+  std::cout << expr << std::endl;
+}
 void print_var(const std::string &name, const Real<IntType> &var)
 {
-  std::cout << "Variable: " << name << " = " << var << std::endl;
+  std::cout << "Variable: " << name << " = ";
+  print_result(Frac<IntType>{var});
 }
 int main()
 {
@@ -65,7 +86,7 @@ int main()
         ExprParser<IntType> p{body};
         auto a = p.parse();
         a.reduce();
-        std::cout << a << std::endl;
+        print_result(a);
       }
       else if (cmd == "func")
       {
@@ -193,7 +214,7 @@ int main()
             env[r.first] = r.second;
           for (size_t i = 0; i < fargs.size(); i++)
             env[fargs[i]] = args[i];
-          std::cout << std::get<1>(it->second).set_var(env) << std::endl;
+          print_result(std::get<1>(it->second).set_var(env));
         }
       }
     }
