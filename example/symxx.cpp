@@ -21,10 +21,27 @@
 #include <tuple>
 using namespace symxx;
 using IntType = long long int;
+void print_func(const std::string &name, const std::tuple<std::vector<std::string>, ExprNode<IntType>> &func)
+{
+  std::string argstr;
+  for (auto &a : std::get<0>(func))
+    argstr += a + ",";
+  if (!argstr.empty())
+    argstr.pop_back();
+  std::cout << "Function: " << name << "(" << argstr << ") = "
+            << std::get<1>(func) << std::endl;
+}
+void print_var(const std::string &name, const Real<IntType> &var)
+{
+  std::cout << "Variable: " << name << " = " << var << std::endl;
+}
 int main()
 {
   std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
-  std::map<std::string, Real<IntType>> vars;
+  std::map<std::string, Real<IntType>> vars{
+      {"pi", static_cast<long double>(3.14159265358979311)},
+      {"e", static_cast<long double>(2.718281828459045235)},
+  };
   std::string str, cmd, body;
   while (true)
   {
@@ -41,7 +58,7 @@ int main()
       else
       {
         cmd = str;
-        body = str;
+        body = "";
       }
       if (cmd == "reduce")
       {
@@ -89,8 +106,8 @@ int main()
           argstr += a + ",";
         if (!argstr.empty())
           argstr.pop_back();
-        std::cout << "Function: " << name << "(" << argstr << ") = " << func << std::endl;
         funcs[name] = {args, func};
+        print_func(name, funcs[name]);
       }
       else if (cmd == "var")
       {
@@ -108,23 +125,26 @@ int main()
         if (temp.empty())
           throw Error(SYMXX_ERROR_LOCATION, __func__, "Variable's name can not be empty.");
         vars[temp] = Real<IntType>{Rational<IntType>{body.substr(i + 1)}};
+        print_var(temp, vars[temp]);
       }
       else if (cmd == "print")
       {
-        auto itf = funcs.find(body);
-        auto itv = vars.find(body);
-        if (itf != funcs.end())
+        if (body.empty())
         {
-          std::string argstr;
-          for (auto &a : std::get<0>(itf->second))
-            argstr += a + ",";
-          if (!argstr.empty())
-            argstr.pop_back();
-          std::cout << "Function: " << body << "(" << argstr << ") = "
-                    << std::get<1>(itf->second) << std::endl;
+          for (auto &r : funcs)
+            print_func(r.first, r.second);
+          for (auto &r : vars)
+            print_var(r.first, r.second);
         }
-        if (itv != vars.end())
-          std::cout << "Variable: " << body << " = " << itv->second << std::endl;
+        else
+        {
+          auto itf = funcs.find(body);
+          auto itv = vars.find(body);
+          if (itf != funcs.end())
+            print_func(body, itf->second);
+          if (itv != vars.end())
+            print_var(body, itv->second);
+        }
       }
       else if (cmd == "quit")
         return 0;
@@ -139,21 +159,21 @@ int main()
           throw Error(SYMXX_ERROR_LOCATION, __func__, "Unknown command.");
         else
         {
-          std::string temp;
-          std::vector<Real<IntType>> args;
-          size_t i = lp + 1;
-          auto get_real = [&vars](const std::string str) -> Real<IntType>
+          auto get_real = [&vars](const std::string &str) -> Real<IntType>
           {
             auto it = vars.find(str);
             if (it == vars.end())
               return Real<IntType>{Rational<IntType>{str}};
             return it->second;
           };
+          std::string temp;
+          std::vector<Real<IntType>> args;
+          size_t i = lp + 1;
           for (; i < rp; i++)
           {
-            if (std::isspace(body[i]))
+            if (std::isspace(cmd[i]))
               continue;
-            if (body[i] == ',')
+            if (cmd[i] == ',')
             {
               if (temp.empty())
                 throw Error(SYMXX_ERROR_LOCATION, __func__, "Argument can not be \"\".");
@@ -161,7 +181,7 @@ int main()
               temp = "";
               continue;
             }
-            temp += body[i];
+            temp += cmd[i];
           }
           if (!temp.empty())
             args.emplace_back(get_real(temp));
@@ -169,6 +189,8 @@ int main()
           if (args.size() != fargs.size())
             throw Error(SYMXX_ERROR_LOCATION, __func__, "Expected " + std::to_string(fargs.size()) + " arguments");
           std::map<std::string, Real<IntType>> env;
+          for (auto &r : vars)
+            env[r.first] = r.second;
           for (size_t i = 0; i < fargs.size(); i++)
             env[fargs[i]] = args[i];
           std::cout << std::get<1>(it->second).set_var(env) << std::endl;

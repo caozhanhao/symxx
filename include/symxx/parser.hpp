@@ -172,9 +172,9 @@ namespace symxx
         return {ExprTokenType::RPAREN, ')'};
       }
 
-      std::string temp;
       if (std::isdigit(ch))
       {
+        std::string temp;
         do
         {
           temp += raw[pos];
@@ -188,26 +188,41 @@ namespace symxx
           return {ExprTokenType::DIGIT, Frac<T>{Rational<T>{temp}}.opposite()};
         }
       }
-      else if (std::isalpha(ch))
+      else if (std::isalpha(ch) || ch == '{')
       {
-        if ((curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT ||
-             curr.type() == ExprTokenType::RPAREN) &&
-            !added_mul)
+        std::string symbol;
+        if (ch == '{')
+        {
+          ++pos;
+          do
+          {
+            symbol += raw[pos];
+            ++pos;
+          } while (pos < raw.size() && raw[pos] != '}');
+        }
+        else
+          symbol += ch;
+
+        if (curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT ||
+            curr.type() == ExprTokenType::RPAREN)
         {
           added_mul = true;
           return {ExprTokenType::OP, '*'};
         }
         else
+          ++pos;
+        if (added_mul)
         {
           ++pos;
           added_mul = false;
-          if (!parsing_negative)
-            return {ExprTokenType::SYMBOL, Frac<T>{{{Term<T>{1, std::string(1, ch)}}}}};
-          else
-          {
-            parsing_negative = false;
-            return {ExprTokenType::SYMBOL, Frac<T>{{{Term<T>{-1, std::string(1, ch)}}}}};
-          }
+        }
+        if (!parsing_negative)
+          return {ExprTokenType::SYMBOL, Frac<T>{{Term<T>{Real<T>{1}, symbol}}}};
+        else
+        {
+          ++pos;
+          parsing_negative = false;
+          return {ExprTokenType::SYMBOL, Frac<T>{{Term<T>{Real<T>{-1}, symbol}}}};
         }
       }
       else

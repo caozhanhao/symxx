@@ -226,7 +226,7 @@ namespace symxx
       else
       {
         if (it->first.size() != 1)
-          os << "(" << it->first << ")";
+          os << "{" << it->first << "}";
         else
           os << it->first;
       }
@@ -521,6 +521,11 @@ namespace symxx
   public:
     Frac(const Real<T> &n, Environment<T> e = nullptr)
         : numerator({Term<T>{n}}), denominator({Term<T>{1}}), env(e)
+    {
+      reduce();
+    }
+    Frac(const Term<T> &n, Environment<T> e = nullptr)
+        : numerator({n}), denominator({Term<T>{1}}), env(e)
     {
       reduce();
     }
