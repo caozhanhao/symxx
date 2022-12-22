@@ -55,12 +55,12 @@ namespace symxx
     std::size_t pos;
     ExprToken<T> curr;
     bool parsing_end;
-    bool added_mul;
+    bool last_token_added_a_mul;
     bool parsing_negative;
 
   public:
     ExprParser(const std::string &r)
-        : raw(r), pos(0), curr(ExprTokenType::OP, '\0'), parsing_end(false), added_mul(false), parsing_negative(false) {}
+        : raw(r), pos(0), curr(ExprTokenType::OP, '\0'), parsing_end(false), last_token_added_a_mul(false), parsing_negative(false) {}
 
     ExprNode<T> parse()
     {
@@ -98,8 +98,16 @@ namespace symxx
         }
         else if (curr.type() == ExprTokenType::RPAREN)
         {
+          if (op.empty())
+            throw Error(SYMXX_ERROR_LOCATION, __func__, "Expected '('");
           while (!nodes.empty() && op.top() != '(')
+          {
             handle();
+            if (op.empty())
+              throw Error(SYMXX_ERROR_LOCATION, __func__, "Expected '('");
+          }
+          if (op.empty())
+            throw Error(SYMXX_ERROR_LOCATION, __func__, "Invaild string.");
           op.pop();
           continue;
         }
@@ -154,15 +162,15 @@ namespace symxx
       }
       else if (ch == '(')
       {
-        if ((curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT || curr.type() == ExprTokenType::RPAREN) && !added_mul)
+        if ((curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT || curr.type() == ExprTokenType::RPAREN) && !last_token_added_a_mul)
         {
-          added_mul = true;
+          last_token_added_a_mul = true;
           return {ExprTokenType::OP, '*'};
         }
         else
         {
           ++pos;
-          added_mul = false;
+          last_token_added_a_mul = false;
           return {ExprTokenType::LPAREN, '('};
         }
       }
@@ -189,6 +197,7 @@ namespace symxx
         }
       }
       else if (std::isalpha(ch) || ch == '{')
+      // when parser adds '*' to "2{x}", ch might be '}'
       {
         std::string symbol;
         if (ch == '{')
@@ -202,19 +211,20 @@ namespace symxx
         }
         else
           symbol += ch;
-
         if (curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT ||
             curr.type() == ExprTokenType::RPAREN)
         {
-          added_mul = true;
+          last_token_added_a_mul = true;
+          if (ch == '{')
+            pos -= symbol.size() + 1;
           return {ExprTokenType::OP, '*'};
         }
         else
           ++pos;
-        if (added_mul)
+        if (last_token_added_a_mul)
         {
           ++pos;
-          added_mul = false;
+          last_token_added_a_mul = false;
         }
         if (!parsing_negative)
           return {ExprTokenType::SYMBOL, Frac<T>{{Term<T>{Real<T>{1}, symbol}}}};
