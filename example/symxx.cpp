@@ -56,9 +56,9 @@ int main()
 {
   std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
   std::map<std::string, Real<IntType>> vars{
-      {"pi", static_cast<long double>(3.14159265358979311)},
-      {"e", static_cast<long double>(2.718281828459045235)},
-  };
+      {"pi", Rational<IntType>{157, 50}},
+      {"e", Rational<IntType>{271, 100}}};
+
   std::string str, cmd, body;
   while (true)
   {

@@ -1,4 +1,4 @@
-//   Copyright 2021-2022 symxx - caozhanhao
+//   Copyright 2022 symxx - caozhanhao
 //
 //   Licensed under the Apache License, Version 2.0 (the "License");
 //   you may not use this file except in compliance with the License.
@@ -42,14 +42,14 @@ namespace symxx
     }
     return count;
   }
-  template <typename T,
-            typename = typename std::enable_if_t<std::is_integral<T>::value>>
-  inline T gcd(T a, T b)
+  long double round_decplaces(long double value, int decimal_places)
   {
-    return b > 0 ? gcd(b, a % b) : a;
+    const unsigned long long m = std::pow(static_cast<unsigned long long>(10), decimal_places);
+    return std::round(value * m) / m;
   }
   template <typename T,
-            typename = typename std::enable_if_t<std::is_integral<T>::value>>
+            typename = typename std::enable_if_t<std::is_integral_v<T>>,
+            typename = typename std::enable_if_t<std::is_signed_v<T>>>
   class Rational
   {
     template <typename U>
@@ -60,12 +60,12 @@ namespace symxx
     T denominator;
 
   public:
-    template <typename U, typename = typename std::enable_if_t<std::is_integral<U>::value>>
+    template <typename U, typename = typename std::enable_if_t<std::is_integral_v<U>>>
     Rational(U n)
         : numerator(static_cast<T>(n)), denominator(1)
     {
     }
-    template <typename U, typename = typename std::enable_if_t<std::is_integral<U>::value>>
+    template <typename U, typename = typename std::enable_if_t<std::is_integral_v<U>>>
     Rational(U n, U d)
         : numerator(static_cast<T>(n)), denominator(static_cast<T>(d))
     {
@@ -80,10 +80,15 @@ namespace symxx
 
     Rational(long double x)
     {
+      auto ndigits = decimal_places(x);
+      if (ndigits > std::numeric_limits<T>::digits10)
+        x = round_decplaces(x, std::numeric_limits<T>::digits10);
       long double fracpart, intpart;
       fracpart = std::modf(x, &intpart);
-      auto ndigits = decimal_places(fracpart);
-      denominator = std::pow(10, ndigits);
+      denominator = std::pow(10,
+                             ndigits > std::numeric_limits<T>::digits10
+                                 ? std::numeric_limits<T>::digits10
+                                 : ndigits);
       numerator = x * denominator;
       reduce();
     }
@@ -215,7 +220,7 @@ namespace symxx
     Rational reciprocate() const { return {denominator, numerator}; }
     void reduce()
     {
-      T g = gcd(std::abs(numerator), std::abs(denominator));
+      T g = std::gcd(std::abs(numerator), std::abs(denominator));
       numerator /= g;
       denominator /= g;
       if (denominator == -1)
@@ -290,7 +295,7 @@ namespace symxx
       }
       else if (numbak == 1)
       {
-        auto g = gcd(index, k);
+        auto g = std::gcd(index, k);
         index /= k;
         num = std::pow(i, k / g);
       }

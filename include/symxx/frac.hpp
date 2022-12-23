@@ -1,4 +1,4 @@
-//   Copyright 2021-2022 symxx - caozhanhao
+//   Copyright 2022 symxx - caozhanhao
 //
 //   Licensed under the Apache License, Version 2.0 (the "License");
 //   you may not use this file except in compliance with the License.
@@ -718,13 +718,13 @@ namespace symxx
       for (auto &r : denominator.get_poly())
         r *= Term<T>{den, {}, env};
 
-      T g = gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
-                denominator.get_poly()[0].get_coe().get_coe().to_t());
+      T g = std::gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
+                     denominator.get_poly()[0].get_coe().get_coe().to_t());
       for (auto &n : numerator.get_poly())
       {
         for (std::size_t i = 1; i < denominator.get_poly().size(); ++i)
         {
-          T new_g = gcd(n.get_coe().get_coe().to_t(), denominator.get_poly()[i].get_coe().get_coe().to_t());
+          T new_g = std::gcd(n.get_coe().get_coe().to_t(), denominator.get_poly()[i].get_coe().get_coe().to_t());
           if (g % new_g == 0)
             g = std::min(g, new_g);
           else
