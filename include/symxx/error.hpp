@@ -15,6 +15,7 @@
 #define SYMXX_ERROR_HPP
 #include <string>
 #include <stdexcept>
+#include <experimental/source_location>
 #define _SYMXX_STRINGFY(x) #x
 #define SYMXX_STRINGFY(x) _SYMXX_STRINGFY(x)
 #define SYMXX_ERROR_LOCATION __FILE__ ":line " SYMXX_STRINGFY(__LINE__)
@@ -27,8 +28,11 @@ namespace symxx
     std::string detail;
 
   public:
-    Error(std::string location_, const std::string &func_name_, const std::string &detail_)
-        : logic_error(detail_), location(std::move(location_) + ":" + func_name_ + "()"),
+    Error(const std::string &detail_, const std::experimental::source_location &l =
+                                          std::experimental::source_location::current())
+        : logic_error(detail_),
+          location(std::string(l.file_name()) + ":" + std::to_string(l.line()) +
+                   ":" + l.function_name() + "()"),
           detail(detail_) {}
 
     [[nodiscard]] std::string get_content() const

@@ -118,7 +118,7 @@ namespace symxx
       }
       break;
       default:
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "Unexpected op '" + std::string(1, data.op) + "'.");
+        throw Error("Unexpected op '" + std::string(1, data.op) + "'.");
         break;
       }
       return nullptr;
@@ -162,7 +162,7 @@ namespace symxx
       }
       break;
       default:
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "Unexpected op '" + std::string(1, data.op) + "'.");
+        throw Error("Unexpected op '" + std::string(1, data.op) + "'.");
         break;
       }
       node_type = NodeType::FRAC;

@@ -70,7 +70,7 @@ namespace symxx
         : numerator(static_cast<T>(n)), denominator(static_cast<T>(d))
     {
       if (denominator == 0)
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+        throw Error("denominator must not be 0.");
       reduce();
     }
     Rational()
@@ -117,14 +117,14 @@ namespace symxx
       }
       catch (std::invalid_argument &)
       {
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "Invaild string.");
+        throw Error("Invaild string.");
       }
       catch (std::out_of_range &)
       {
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "The number is out of range.");
+        throw Error("The number is out of range.");
       }
       if (denominator == 0)
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+        throw Error("denominator must not be 0.");
     }
     Rational operator+(const Rational &i) const
     {
@@ -137,7 +137,7 @@ namespace symxx
       numerator = numerator * i.denominator + i.numerator * denominator;
       denominator *= i.denominator;
       if (denominator == 0)
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+        throw Error("denominator must not be 0.");
       reduce();
       return *this;
     }
@@ -163,7 +163,7 @@ namespace symxx
       numerator *= i.numerator;
       denominator *= i.denominator;
       if (denominator == 0)
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+        throw Error("denominator must not be 0.");
       reduce();
       return *this;
     }
@@ -190,7 +190,7 @@ namespace symxx
       numerator = static_cast<T>(std::pow(numerator, p.template to<double>()));
       denominator = static_cast<T>(std::pow(denominator, p.template to<double>()));
       if (denominator == 0)
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+        throw Error("denominator must not be 0.");
       reduce();
       return *this;
     }
@@ -335,7 +335,7 @@ namespace symxx
     Real &operator+=(const Real &r)
     {
       if (!is_equivalent_with(r))
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "radicand and index must be the same.");
+        throw Error("radicand and index must be the same.");
       coe += r.coe;
       reduce();
       return *this;
@@ -468,7 +468,7 @@ namespace symxx
     Rational<T> to() const
     {
       if (!is_rational())
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "Must be a rational.");
+        throw Error("Must be a rational.");
       return coe * radicand;
     }
     Real reciprocate() const

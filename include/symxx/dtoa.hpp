@@ -359,7 +359,7 @@ namespace symxx
     {
       if (e != x.e || f < x.f)
       {
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "These DiyFps can not minus.");
+        throw Error("These DiyFps can not minus.");
       }
       return {f - x.f, e};
     }

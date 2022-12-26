@@ -136,13 +136,13 @@ namespace symxx
     U to() const
     {
       if (!no_symbols())
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "Term must not have symbols.");
+        throw Error("Term must not have symbols.");
       return get_coe().template to<U>();
     }
     Real<T> eval() const
     {
       if (!no_symbols())
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "Term must not have symbols.");
+        throw Error("Term must not have symbols.");
       return get_coe();
     }
     std::unique_ptr<Real<T>> try_eval() const
@@ -372,7 +372,7 @@ namespace symxx
       std::vector<Term<T>> res;
       using pT = std::make_unsigned_t<T>;
       if (!i.is_int())
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "Must be a int.");
+        throw Error("Must be a int.");
       auto avecvec = solve_variable_eq(i.to_t(), static_cast<T>(poly.size()));
       pT i_factorial = 1;
       for (pT t = 1; t <= i.to_t(); ++t)
@@ -566,7 +566,7 @@ namespace symxx
         : numerator(n), denominator(d), env(e)
     {
       if (denominator.is_zero())
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+        throw Error("denominator must not be 0.");
       reduce();
     }
     Frac(const Frac &t)
@@ -588,7 +588,7 @@ namespace symxx
         numerator = numerator * t.denominator + t.numerator * denominator;
       }
       if (denominator.is_zero())
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+        throw Error("denominator must not be 0.");
       reduce();
       return *this;
     }
@@ -624,7 +624,7 @@ namespace symxx
       numerator *= t.numerator;
       denominator *= t.denominator;
       if (denominator.is_zero())
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+        throw Error("denominator must not be 0.");
       reduce();
       return *this;
     }
@@ -679,7 +679,7 @@ namespace symxx
       denominator.set_env(val);
       reduce();
       if (denominator.is_zero())
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "denominator must not be 0.");
+        throw Error("denominator must not be 0.");
     }
     bool no_symbols() const
     {

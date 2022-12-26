@@ -70,7 +70,7 @@ namespace symxx
       auto handle = [&nodes, &op]()
       {
         if (nodes.size() < 2 || op.empty())
-          throw Error(SYMXX_ERROR_LOCATION, __func__, "Invaild string.");
+          throw Error("Invaild string.");
         auto *rhs = nodes.top();
         nodes.pop();
         auto *lhs = nodes.top();
@@ -99,15 +99,15 @@ namespace symxx
         else if (curr.type() == ExprTokenType::RPAREN)
         {
           if (op.empty())
-            throw Error(SYMXX_ERROR_LOCATION, __func__, "Expected '('");
+            throw Error("Expected '('");
           while (!nodes.empty() && op.top() != '(')
           {
             handle();
             if (op.empty())
-              throw Error(SYMXX_ERROR_LOCATION, __func__, "Expected '('");
+              throw Error("Expected '('");
           }
           if (op.empty())
-            throw Error(SYMXX_ERROR_LOCATION, __func__, "Invaild string.");
+            throw Error("Invaild string.");
           op.pop();
           continue;
         }
@@ -117,12 +117,12 @@ namespace symxx
           continue;
         }
         else
-          throw Error(SYMXX_ERROR_LOCATION, __func__, "Unexpected ExprToken.");
+          throw Error("Unexpected ExprToken.");
       }
       while (!op.empty())
         handle();
       if (nodes.size() != 1)
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "Invaild string.");
+        throw Error("Invaild string.");
       return *nodes.top();
     }
 
@@ -236,7 +236,7 @@ namespace symxx
         }
       }
       else
-        throw Error(SYMXX_ERROR_LOCATION, __func__, "Unexpected '" + std::string(1, ch) + "'.");
+        throw Error("Unexpected '" + std::string(1, ch) + "'.");
       return curr;
     }
     bool great(char a, char b) const
