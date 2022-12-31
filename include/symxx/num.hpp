@@ -47,12 +47,10 @@ namespace symxx
     const unsigned long long m = std::pow(static_cast<unsigned long long>(10), decimal_places);
     return std::round(value * m) / m;
   }
-  template <typename T,
-            typename = typename std::enable_if_t<std::is_integral_v<T>>,
-            typename = typename std::enable_if_t<std::is_signed_v<T>>>
+  template<typename T>
   class Rational
   {
-    template <typename U>
+    template<typename U>
     friend std::ostream &operator<<(std::ostream &os, const Rational<U> &i);
 
   private:

@@ -29,12 +29,12 @@ namespace symxx
 
   public:
     Error(const std::string &detail_, const std::experimental::source_location &l =
-                                          std::experimental::source_location::current())
+    std::experimental::source_location::current())
         : logic_error(detail_),
           location(std::string(l.file_name()) + ":" + std::to_string(l.line()) +
                    ":" + l.function_name() + "()"),
           detail(detail_) {}
-
+  
     [[nodiscard]] std::string get_content() const
     {
       return {"\033[1;37m" + location + ":" + "\033[0;32;31m error : \033[m" + detail};

@@ -59,7 +59,7 @@ int main()
   std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
   std::map<std::string, Real<IntType>> vars{
       {"pi", Rational<IntType>{157, 50}},
-      {"e", Rational<IntType>{271, 100}}};
+      {"e",  Rational<IntType>{271, 100}}};
 
   std::string str, cmd, body;
   while (true)
@@ -84,8 +84,10 @@ int main()
         ExprParser<IntType> p{body};
         auto a = p.parse();
         std::map<std::string, Real<IntType>> env;
-        for (auto &r : vars)
+        for (auto &r: vars)
+        {
           env[r.first] = r.second;
+        }
         print_result(a.set_var(env));
       }
       else if (cmd == "func")
@@ -123,8 +125,10 @@ int main()
         auto func = p.parse();
         func.reduce();
         std::string argstr;
-        for (auto &a : args)
+        for (auto &a: args)
+        {
           argstr += a + ",";
+        }
         if (!argstr.empty())
           argstr.pop_back();
         funcs[name] = {args, func};
@@ -152,10 +156,14 @@ int main()
       {
         if (body.empty())
         {
-          for (auto &r : funcs)
+          for (auto &r: funcs)
+          {
             print_func(r.first, r.second);
-          for (auto &r : vars)
+          }
+          for (auto &r: vars)
+          {
             print_var(r.first, r.second);
+          }
         }
         else
         {
@@ -210,8 +218,10 @@ int main()
           if (args.size() != fargs.size())
             throw Error("Expected " + std::to_string(fargs.size()) + " arguments");
           std::map<std::string, Real<IntType>> env;
-          for (auto &r : vars)
+          for (auto &r: vars)
+          {
             env[r.first] = r.second;
+          }
           for (size_t i = 0; i < fargs.size(); i++)
             env[fargs[i]] = args[i];
           print_result(std::get<1>(it->second).set_var(env));
@@ -226,7 +236,7 @@ int main()
   return 0;
 }
 
-// Huge debug(unfinished)
+//Huge debug(unfinished)
 // int main()
 // {
 //   Huge s1{"123456789123456789123456789123456789"};

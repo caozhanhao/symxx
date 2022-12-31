@@ -321,23 +321,25 @@ namespace symxx
                                              986, 990, 993, 996, 1000, 1003, 1006, 1009, 1013, 1016, 1019, 1023, 1026,
                                              1029, 1033, 1036, 1039, 1043, 1046, 1049, 1053, 1056, 1059, 1063, 1066,
                                              1069, 1073, 1076};
+  
   inline uint64_t double_to_uint64(const double &d)
   {
     uint64_t d64;
     std::memcpy(&d64, &d, sizeof(d));
     return d64;
   }
+  
   class DiyFp
   {
   public:
     uint64_t f;
     int e;
-
-    DiyFp() : f(0), e(0){};
-
+    
+    DiyFp() : f(0), e(0) {};
+    
     DiyFp(uint64_t f_, int e_)
         : f(f_), e(e_) {}
-
+    
     explicit DiyFp(const double &d)
     {
       auto d64 = double_to_uint64(d);
@@ -354,7 +356,7 @@ namespace symxx
         e = DP_MIN_EXPONENT + 1;
       }
     }
-
+    
     DiyFp operator-(const DiyFp &x) const
     {
       if (e != x.e || f < x.f)
@@ -363,7 +365,7 @@ namespace symxx
       }
       return {f - x.f, e};
     }
-
+    
     DiyFp operator*(const DiyFp &x) const
     {
       uint64_t a, b, c, d, ac, bc, ad, bd, tmp;
@@ -380,7 +382,7 @@ namespace symxx
       tmp += 1U << 31;
       return {ac + (ad >> 32) + (bc >> 32) + (tmp >> 32), e + x.e + 64};
     }
-
+    
     DiyFp normalize()
     {
       DiyFp res = *this;
@@ -393,7 +395,7 @@ namespace symxx
       res.e = res.e - (DIY_SIGNIFICAND_SIZE - DP_SIGNIFICAND_SIZE - 1);
       return res;
     }
-
+    
     DiyFp normalize_boundary()
     {
       DiyFp res = *this;
@@ -406,7 +408,7 @@ namespace symxx
       res.e = res.e - (DIY_SIGNIFICAND_SIZE - DP_SIGNIFICAND_SIZE - 2);
       return res;
     }
-
+    
     [[nodiscard]] std::tuple<DiyFp, DiyFp> normalized_boundaries() const
     {
       DiyFp pl, mi;
@@ -429,17 +431,17 @@ namespace symxx
       return {mi, pl};
     }
   };
-
+  
   DiyFp cached_power(int k)
   {
     return {powers_ten[343 + k], powers_ten_e[343 + k]};
   }
-
+  
   int k_comp(int e, int alpha)
   {
     return std::ceil((alpha - e + 63) * D_1_LOG2_10);
   }
-
+  
   void grisu_round(std::string &buffer, uint64_t delta, uint64_t rest, uint64_t ten_kappa, uint64_t wp_w)
   {
     while (rest < wp_w &&
@@ -451,12 +453,12 @@ namespace symxx
       rest += ten_kappa;
     }
   }
-
+  
   void digit_gen(DiyFp W, DiyFp Mp, DiyFp delta, std::string &buffer, int &K)
   {
     uint32_t div;
     int d, kappa;
-    DiyFp one{((uint64_t)1) << -Mp.e, Mp.e};
+    DiyFp one{((uint64_t) 1) << -Mp.e, Mp.e};
     DiyFp wp_w = Mp - W;
     uint32_t p1 = Mp.f >> -one.e;
     uint64_t p2 = Mp.f & (one.f - 1);
@@ -469,11 +471,11 @@ namespace symxx
         buffer += static_cast<char>(static_cast<int>('0') + d);
       p1 %= div;
       kappa--;
-      uint64_t tmp = (((uint64_t)p1) << -one.e) + p2;
+      uint64_t tmp = (((uint64_t) p1) << -one.e) + p2;
       if (tmp <= delta.f)
       {
         K += kappa;
-        grisu_round(buffer, delta.f, tmp, ((uint64_t)div) << -one.e, wp_w.f);
+        grisu_round(buffer, delta.f, tmp, ((uint64_t) div) << -one.e, wp_w.f);
         return;
       }
       div /= 10;
@@ -497,11 +499,11 @@ namespace symxx
       }
     }
   }
-
+  
   void grisu2(double v, std::string &buffer, int &K)
   {
     int q = 64, alpha = -59;
-    auto [w_m, w_p] = DiyFp(v).normalized_boundaries();
+    auto[w_m, w_p] = DiyFp(v).normalized_boundaries();
     DiyFp w = DiyFp(v).normalize();
     int mk = k_comp(w_p.e + q, alpha);
     DiyFp c_mk = cached_power(mk);
@@ -514,7 +516,7 @@ namespace symxx
     K = -mk;
     digit_gen(W, Wp, delta, buffer, K);
   }
-
+  
   void fill_exponent(int K, std::string &buffer)
   {
     if (K < 0)
@@ -541,7 +543,7 @@ namespace symxx
     else
       buffer += static_cast<char>(static_cast<int>('0') + K);
   }
-
+  
   std::string prettify_string(const std::string &buffer, int k)
   {
     std::string ret;
@@ -581,7 +583,7 @@ namespace symxx
     }
     return std::move(ret);
   }
-
+  
   std::string fill_double(double v)
   {
     int K;
@@ -589,7 +591,7 @@ namespace symxx
     grisu2(v, buffer, K);
     return std::move(prettify_string(buffer, K));
   }
-
+  
   std::string dtoa(const double &value)
   {
     if (value == 0 && ((double_to_uint64(value) & SIGN_MASK) != 0))

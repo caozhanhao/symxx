@@ -21,6 +21,7 @@
 #include <stack>
 #include <variant>
 #include <map>
+
 namespace symxx
 {
   enum class ExprTokenType
@@ -31,23 +32,31 @@ namespace symxx
     DIGIT,
     SYMBOL
   };
-  template <typename T>
+  
+  template<typename T>
   class ExprToken
   {
   private:
-    std::variant<char, Frac<T>> val;
+    std::variant<char, Frac < T>> val;
     ExprTokenType ExprToken_type;
-
+  
   public:
-    template <typename U>
+    template<typename U>
     ExprToken(ExprTokenType t, U &&u)
         : val(std::forward<U>(u)), ExprToken_type(t) {}
-
+    
     auto type() const { return ExprToken_type; }
-    auto frac() const { return std::get<Frac<T>>(val); }
+    
+    auto frac() const
+    {
+      return std::get<Frac < T>>
+      (val);
+    }
+    
     auto ch() const { return std::get<char>(val); }
   };
-  template <typename T>
+  
+  template<typename T>
   class ExprParser
   {
   private:
@@ -57,12 +66,13 @@ namespace symxx
     bool parsing_end;
     bool last_token_added_a_mul;
     bool parsing_negative;
-
+  
   public:
     ExprParser(const std::string &r)
-        : raw(r), pos(0), curr(ExprTokenType::OP, '\0'), parsing_end(false), last_token_added_a_mul(false), parsing_negative(false) {}
-
-    ExprNode<T> parse()
+        : raw(r), pos(0), curr(ExprTokenType::OP, '\0'), parsing_end(false), last_token_added_a_mul(false),
+          parsing_negative(false) {}
+    
+    ExprNode <T> parse()
     {
       pos = 0;
       std::stack<ExprNode<T> *> nodes;
@@ -70,7 +80,9 @@ namespace symxx
       auto handle = [&nodes, &op]()
       {
         if (nodes.size() < 2 || op.empty())
+        {
           throw Error("Invaild string.");
+        }
         auto *rhs = nodes.top();
         nodes.pop();
         auto *lhs = nodes.top();
@@ -83,7 +95,7 @@ namespace symxx
         next();
         if (parsing_end)
           break;
-
+  
         if (curr.type() == ExprTokenType::OP)
         {
           while (!op.empty() && great(op.top(), curr.ch()))
@@ -125,12 +137,13 @@ namespace symxx
         throw Error("Invaild string.");
       return *nodes.top();
     }
-
+  
   private:
     void next()
     {
       curr = get_ExprToken();
     }
+    
     ExprToken<T> get_ExprToken()
     {
       while (pos < raw.size() && std::isspace(raw[pos]))
@@ -148,7 +161,8 @@ namespace symxx
           pos += 2;
           return {ExprTokenType::OP, '^'};
         }
-        else if (ch == '-' && (curr.type() == ExprTokenType::LPAREN || (curr.type() == ExprTokenType::OP && curr.ch() == '\0')))
+        else if (ch == '-' &&
+                 (curr.type() == ExprTokenType::LPAREN || (curr.type() == ExprTokenType::OP && curr.ch() == '\0')))
         {
           parsing_negative = true;
           pos++;
@@ -162,7 +176,8 @@ namespace symxx
       }
       else if (ch == '(')
       {
-        if ((curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT || curr.type() == ExprTokenType::RPAREN) && !last_token_added_a_mul)
+        if ((curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT ||
+             curr.type() == ExprTokenType::RPAREN) && !last_token_added_a_mul)
         {
           last_token_added_a_mul = true;
           return {ExprTokenType::OP, '*'};
@@ -179,7 +194,7 @@ namespace symxx
         ++pos;
         return {ExprTokenType::RPAREN, ')'};
       }
-
+  
       if (std::isdigit(ch))
       {
         std::string temp;
@@ -197,7 +212,7 @@ namespace symxx
         }
       }
       else if (std::isalpha(ch) || ch == '{')
-      // when parser adds '*' to "2{x}", ch might be '}'
+        // when parser adds '*' to "2{x}", ch might be '}'
       {
         std::string symbol;
         if (ch == '{')
@@ -239,6 +254,7 @@ namespace symxx
         throw Error("Unexpected '" + std::string(1, ch) + "'.");
       return curr;
     }
+    
     bool great(char a, char b) const
     {
       const static std::map<char, int> priority = {
@@ -247,8 +263,7 @@ namespace symxx
           {'-', 10},
           {'*', 100},
           {'/', 100},
-          {'^', 1000}};
-      ;
+          {'^', 1000}};;
       return priority.at(a) > priority.at(b);
     }
   };

@@ -25,17 +25,22 @@ namespace symxx
     OP,
     FRAC
   };
-  template <typename T>
+  
+  template<typename T>
   class ExprNode;
-  template <typename T>
+  
+  template<typename T>
   struct OpData
   {
     char op;
     ExprNode<T> *lhs;
     ExprNode<T> *rhs;
+    
     OpData() : op('\0') {}
+    
     OpData(char o, ExprNode<T> *l, ExprNode<T> *r)
         : op(o), lhs(l), rhs(r) {}
+    
     OpData(const OpData &od)
     {
       op = od.op;
@@ -44,33 +49,44 @@ namespace symxx
       if (od.rhs != nullptr)
         rhs = new ExprNode<T>(*od.rhs);
     }
+  
     ~OpData()
     {
       if (lhs != nullptr)
+      {
         delete lhs;
+      }
       if (rhs != nullptr)
+      {
         delete rhs;
+      }
     }
   };
-  template <typename T>
+  
+  template<typename T>
   class ExprNode
   {
-    template <typename U>
+    template<typename U>
     friend std::ostream &operator<<(std::ostream &os, const ExprNode<U> &i);
-    template <typename U>
+    
+    template<typename U>
     friend bool withparen(const ExprNode<U> &node, bool left);
-
+  
   private:
     std::variant<Frac<T>, OpData<T>> val;
     NodeType node_type;
-
+  
   public:
     ExprNode()
         : node_type(NodeType::FRAC), val(Frac<T>{0}) {}
+    
     ExprNode(char op, ExprNode *lhs, ExprNode *rhs)
         : val(OpData{op, lhs, rhs}), node_type(NodeType::OP) {}
+    
     ExprNode(const Frac<T> &frac) : val(frac), node_type(NodeType::FRAC) {}
+    
     ExprNode(const ExprNode &nd) : val(nd.val), node_type(nd.node_type) {}
+    
     ExprNode set_var(const std::map<std::string, Real<T>> &e) const
     {
       auto a = *this;
@@ -78,6 +94,7 @@ namespace symxx
       a.set_env(env);
       return a;
     }
+    
     void set_env(Environment<T> e)
     {
       if (node_type == NodeType::FRAC)
@@ -90,6 +107,7 @@ namespace symxx
       data.rhs->set_env(e);
       reduce();
     }
+    
     std::unique_ptr<Frac<T>> try_eval() const
     {
       if (node_type == NodeType::FRAC)
@@ -101,28 +119,31 @@ namespace symxx
         return nullptr;
       switch (data.op)
       {
-      case '+':
-        return std::make_unique<Frac<T>>(*lhsv + *rhsv);
-      case '-':
-        return std::make_unique<Frac<T>>(*lhsv - *rhsv);
-      case '*':
-        return std::make_unique<Frac<T>>(*lhsv * *rhsv);
-      case '/':
-        return std::make_unique<Frac<T>>(*lhsv / *rhsv);
-      case '^':
-      {
-        auto power = rhsv->try_eval();
-        if (power == nullptr || !power->is_rational())
-          return nullptr;
-        return std::make_unique<Frac<T>>(*lhsv ^ rhsv->template to<Rational<T>>());
-      }
-      break;
-      default:
-        throw Error("Unexpected op '" + std::string(1, data.op) + "'.");
-        break;
+        case '+':
+          return std::make_unique<Frac<T>>(*lhsv + *rhsv);
+        case '-':
+          return std::make_unique<Frac<T>>(*lhsv - *rhsv);
+        case '*':
+          return std::make_unique<Frac<T>>(*lhsv * *rhsv);
+        case '/':
+          return std::make_unique<Frac<T>>(*lhsv / *rhsv);
+        case '^':
+        {
+          auto power = rhsv->try_eval();
+          if (power == nullptr || !power->is_rational())
+          {
+            return nullptr;
+          }
+          return std::make_unique<Frac<T>>(*lhsv ^ rhsv->template to<Rational<T>>());
+        }
+          break;
+        default:
+          throw Error("Unexpected op '" + std::string(1, data.op) + "'.");
+          break;
       }
       return nullptr;
     }
+    
     void reduce()
     {
       if (node_type == NodeType::FRAC)
@@ -138,54 +159,62 @@ namespace symxx
         return;
       switch (data.op)
       {
-      case '+':
-        val = {*lhsv + *rhsv};
-        break;
-      case '-':
-        val = {*lhsv - *rhsv};
-        break;
-      case '*':
-        val = {*lhsv * *rhsv};
-        break;
-      case '/':
-        val = {*lhsv / *rhsv};
-        break;
-      case '^':
-      {
-        auto power = rhsv->try_eval();
-        if (power == nullptr || !power->is_rational())
+        case '+':
+          val = {*lhsv + *rhsv};
+          break;
+        case '-':
+          val = {*lhsv - *rhsv};
+          break;
+        case '*':
+          val = {*lhsv * *rhsv};
+          break;
+        case '/':
+          val = {*lhsv / *rhsv};
+          break;
+        case '^':
         {
-          data.lhs->reduce();
-          return;
+          auto power = rhsv->try_eval();
+          if (power == nullptr || !power->is_rational())
+          {
+            data.lhs->reduce();
+            return;
+          }
+          val = *lhsv ^ power->template to<Rational<T>>();
         }
-        val = *lhsv ^ power->template to<Rational<T>>();
-      }
-      break;
-      default:
-        throw Error("Unexpected op '" + std::string(1, data.op) + "'.");
-        break;
+          break;
+        default:
+          throw Error("Unexpected op '" + std::string(1, data.op) + "'.");
+          break;
       }
       node_type = NodeType::FRAC;
     }
-
+  
   private:
     auto type() const { return node_type; }
+  
     auto &frac() { return std::get<Frac<T>>(val); }
+  
     auto &opdata() { return std::get<OpData<T>>(val); }
+  
     auto &frac() const { return std::get<Frac<T>>(val); }
+  
     auto &opdata() const { return std::get<OpData<T>>(val); }
   };
-
-  template <typename U>
+  
+  template<typename U>
   bool withparen(const ExprNode<U> &node, bool left)
   {
     if (node.type() == NodeType::FRAC)
+    {
       return false;
+    }
     auto &opdata = node.opdata();
     auto op = opdata.op;
     if (opdata.lhs == nullptr || opdata.rhs == nullptr)
+    {
       return false;
-
+    }
+    
     if (left)
     {
       if (opdata.lhs->type() != NodeType::OP)
@@ -193,12 +222,14 @@ namespace symxx
       char leftop = opdata.lhs->opdata().op;
       switch (op)
       {
-      case '*':
-      case '/':
-        if (leftop == '+' || leftop == '-')
+        case '*':
+        case '/':
+          if (leftop == '+' || leftop == '-')
+          {
+            return true;
+          }
+        case '^':
           return true;
-      case '^':
-        return true;
       }
     }
     else
@@ -208,27 +239,33 @@ namespace symxx
       char rightop = opdata.rhs->opdata().op;
       switch (op)
       {
-      case '*':
-        if (rightop == '+' || rightop == '-')
+        case '*':
+          if (rightop == '+' || rightop == '-')
+          {
+            return true;
+          }
+          break;
+        case '/':
+          if (rightop == '+' || rightop == '-' || rightop == '*' || rightop == '/')
+          {
+            return true;
+          }
+          break;
+        case '-':
+          if (rightop == '+' || rightop == '-')
+          {
+            return true;
+          }
+          break;
+        case '^':
           return true;
-        break;
-      case '/':
-        if (rightop == '+' || rightop == '-' || rightop == '*' || rightop == '/')
-          return true;
-        break;
-      case '-':
-        if (rightop == '+' || rightop == '-')
-          return true;
-        break;
-      case '^':
-        return true;
-        break;
+          break;
       }
     }
     return false;
   }
-
-  template <typename U>
+  
+  template<typename U>
   std::ostream &operator<<(std::ostream &os, const ExprNode<U> &i)
   {
     if (i.type() == NodeType::FRAC)
@@ -236,7 +273,7 @@ namespace symxx
       os << i.frac();
       return os;
     }
-
+    
     auto &opdata = i.opdata();
     if (withparen<U>(i, true))
       os << "(" << *opdata.lhs << ")";

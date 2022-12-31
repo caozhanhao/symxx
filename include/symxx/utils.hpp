@@ -21,8 +21,10 @@
 #include <string>
 namespace symxx
 {
-  template <typename T>
-  std::pair<Frac<T>, Frac<T>> solve_quadratic(const Rational<T> &a, const Rational<T> &b, const Rational<T> &c)
+  template<typename T>
+  std::pair<Frac < T>, Frac <T>>
+  
+  solve_quadratic(const Rational <T> &a, const Rational <T> &b, const Rational <T> &c)
   {
     Rational<T> delta = (b ^ 2) - (a * c * 4);
     Frac<T> gdelta{nth_root(2, delta)};
