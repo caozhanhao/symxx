@@ -11,12 +11,7 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
-#include "symxx/dtoa.hpp"
-#include "symxx/expr.hpp"
-#include "symxx/num.hpp"
-#include "symxx/utils.hpp"
-#include "symxx/huge.hpp"
-#include "symxx/parser.hpp"
+#include "symxx/symxx.hpp"
 #include <iostream>
 #include <map>
 #include <string>
@@ -236,16 +231,12 @@ int main()
   return 0;
 }
 
-//Huge debug(unfinished)
+//#include "unittest.hpp"
+////Huge debug(unfinished)
 // int main()
-// {
-//   Huge s1{"123456789123456789123456789123456789"};
-//   Huge s2{"123456"};
-//   std::cout << "s1+s2=" << s1 + s2 << std::endl;
-//   std::cout << "s1-s2=" << s1 - s2 << std::endl;
-//   std::cout << "s2-s1=" << s2 - s1 << std::endl;
-//   std::cout << "s1*s1=" << s1 * s1 << std::endl;
-//   std::cout << "s1/s2=" << s1 / s2 << std::endl;
-//   std::cout << "s1%s2=" << s1 % s2 << std::endl;
-//   return 0;
-// }
+//{
+//  test::huge_test();
+//  test::all_tests.run_all_tests();
+//  test::all_tests.print_results();
+//  return 0;
+//}
