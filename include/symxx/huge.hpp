@@ -25,10 +25,10 @@
 #include <cmath>
 #include <algorithm>
 #include <cstdint>
-#include <bitset>
 #include <type_traits>
 #include <tuple>
 #include <span>
+#include <functional>
 #include <memory>
 #include <bits/stl_algobase.h>
 
@@ -41,117 +41,97 @@ namespace symxx
   constexpr digit SYMXX_HUGE_SHIFT = 30;
   constexpr digit SYMXX_HUGE_BASE = static_cast<digit>(1 << SYMXX_HUGE_SHIFT);
   constexpr digit SYMXX_HUGE_LOW_MASK = static_cast<digit>(SYMXX_HUGE_BASE - 1);
-  constexpr digit SYMXX_HUGE_DECIMAL_SHIFT = 9;
-  constexpr digit SYMXX_HUGE_DECIMAL_BASE = static_cast<digit>(1000000000);
   namespace internal
   {
-    auto bit_length(digit d)
+    namespace helper
     {
-      d |= 1;
+      auto bit_length(digit d)
+      {
+        d |= 1;
 #if (defined(__clang__) || defined(__GNUC__))
-      return std::__lg(d) + 1;
+        return std::__lg(d) + 1;
 #elif defined(_MSC_VER)
-      unsigned long msb;
-      _BitScanReverse(&msb, d);
-      return (int)msb + 1;
+        unsigned long msb;
+        _BitScanReverse(&msb, d);
+        return (int)msb + 1;
 #else
-      digit k = 0;
-      for (; d != 0; d >>= 1)
-        ++k;
-      return k;
+        digit k = 0;
+        for (; d != 0; d >>= 1)
+          ++k;
+        return k;
 #endif
-    }
-    
-    // Shift the digits a[0,m] d bits left/right to z[0,m]
-    // Returns the d bits shifted out of the top.
-    digit digits_left_shift(const std::span<digit> z, const std::span<const digit> a, size_t m, int d)
-    {
-      digit carry = 0;
-      for (size_t i = 0; i < m; ++i)
-      {
-        twodigits acc = static_cast<twodigits>(a[i]) << d | carry;
-        z[i] = static_cast<digit>(acc) & SYMXX_HUGE_LOW_MASK;
-        carry = static_cast<digit>(acc >> SYMXX_HUGE_SHIFT);
       }
-      return carry;
-    }
-    
-    digit digits_right_shift(const std::span<digit> z, const std::span<const digit> a, size_t m, int d)
-    {
-      digit carry = 0;
-      digit mask = (static_cast<digit>(1) << d) - 1U;
-      for (int i = m - 1; i >= 0; --i)
+      
+      // Shift the digits a[0,m] d bits left/right to z[0,m]
+      // Returns the d bits shifted out of the top.
+      digit digits_left_shift(const std::span<digit> z, const std::span<const digit> a, size_t m, int d)
       {
-        twodigits acc = static_cast<twodigits>(carry) << SYMXX_HUGE_SHIFT | a[i];
-        carry = static_cast<digit>(acc) & mask;
-        z[i] = static_cast<digit>(acc >> d);
-      }
-      return carry;
-    }
-    
-    //positive for a>b, 0 for a==b, negative for a<b
-    int digits_cmp(const std::span<const digit> a, const std::span<const digit> b, bool apositive = true,
-                   bool bpositive = true)
-    {
-      sdigit sign =
-          (apositive ? 1 : -1) * static_cast<sdigit>(a.size()) - (bpositive ? 1 : -1) * static_cast<sdigit>(b.size());
-      if (sign == 0)
-      {
-        sdigit diff = 0;
-        for (int i = a.size(); --i >= 0;)
+        digit carry = 0;
+        for (size_t i = 0; i < m; ++i)
         {
-          diff = static_cast<sdigit>(a[i]) - static_cast<sdigit>(b[i]);
-          if (diff != 0)
+          twodigits acc = static_cast<twodigits>(a[i]) << d | carry;
+          z[i] = static_cast<digit>(acc) & SYMXX_HUGE_LOW_MASK;
+          carry = static_cast<digit>(acc >> SYMXX_HUGE_SHIFT);
+        }
+        return carry;
+      }
+      
+      digit digits_right_shift(const std::span<digit> z, const std::span<const digit> a, size_t m, int d)
+      {
+        digit carry = 0;
+        digit mask = (static_cast<digit>(1) << d) - 1U;
+        for (auto i = static_cast<long long>(m - 1); i >= 0; --i)
+        {
+          twodigits acc = static_cast<twodigits>(carry) << SYMXX_HUGE_SHIFT | a[i];
+          carry = static_cast<digit>(acc) & mask;
+          z[i] = static_cast<digit>(acc >> d);
+        }
+        return carry;
+      }
+      
+      std::tuple<std::vector<digit>, std::vector<digit>> k_mul_split(const std::span<const digit> n, const size_t &size)
+      {
+        std::vector<digit> low(std::min(n.size(), size));
+        std::vector<digit> high(n.size() - low.size());
+        std::copy(n.begin(), n.begin() + static_cast<long long>(low.size()), low.begin());
+        std::copy(n.begin() + static_cast<long long>(low.size()),
+                  n.begin() + static_cast<long long>( low.size()) + static_cast<long long>(high.size()), high.begin());
+        return {std::move(high), std::move(low)};
+      }
+      
+      //Requirements: x.size() >= y.size()
+      digit digits_inplace_add(const std::span<digit> x, const std::span<const digit> y)
+      {
+        digit carry = 0;
+        for (size_t i = 0; i < x.size(); ++i)
+        {
+          carry += x[i];
+          if (i < y.size())
           {
-            break;
+            carry += y[i];
           }
+          x[i] = carry & SYMXX_HUGE_LOW_MASK;
+          carry >>= SYMXX_HUGE_SHIFT;
         }
-        sign = apositive ? diff : -diff;
+        return carry;
       }
-      return sign;
-    }
-    
-    std::tuple<std::vector<digit>, std::vector<digit>> k_mul_split(const std::span<const digit> n, const size_t &size)
-    {
-      std::vector<digit> low(std::min(n.size(), size));
-      std::vector<digit> high(n.size() - low.size());
-      std::copy(n.begin(), n.begin() + low.size(), low.begin());
-      std::copy(n.begin() + low.size(), n.begin() + low.size() + high.size(), high.begin());
-      return {std::move(high), std::move(low)};
-    }
-    
-    //Requirements: x.size() >= y.size()
-    digit digits_inplace_add(const std::span<digit> x, const std::span<const digit> y)
-    {
-      digit carry = 0;
-      for (size_t i = 0; i < x.size(); ++i)
+      
+      digit digits_inplace_sub(const std::span<digit> x, const std::span<const digit> y)
       {
-        carry += x[i];
-        if (i < y.size())
+        digit borrow = 0;
+        for (size_t i = 0; i < x.size(); ++i)
         {
-          carry += y[i];
+          borrow = x[i] - borrow;
+          if (i < y.size())
+          {
+            borrow -= y[i];
+          }
+          x[i] = borrow & SYMXX_HUGE_LOW_MASK;
+          borrow >>= SYMXX_HUGE_SHIFT;
+          borrow &= 1;
         }
-        x[i] = carry & SYMXX_HUGE_LOW_MASK;
-        carry >>= SYMXX_HUGE_SHIFT;
+        return borrow;
       }
-      return carry;
-    }
-    
-    digit digits_inplace_sub(const std::span<digit> x, const std::span<const digit> y)
-    {
-      digit borrow = 0;
-      for (size_t i = 0; i < x.size(); ++i)
-      {
-        borrow = x[i] - borrow;
-        if (i < y.size())
-        {
-          borrow -= y[i];
-        }
-        x[i] = borrow & SYMXX_HUGE_LOW_MASK;
-        borrow >>= SYMXX_HUGE_SHIFT;
-        borrow &= 1;
-      }
-      return borrow;
     }
     
     void digits_add(const std::span<const digit> c, const std::span<const digit> d, std::vector<digit> &ret)
@@ -201,7 +181,7 @@ namespace symxx
       for (size_t i = 0; i < a.size(); ++i)
       {
         twodigits carry = 0;
-        auto itr = ret.begin() + i;
+        auto itr = ret.begin() + static_cast<long long>(i);
         for (auto itb = b.begin(); itb < b.end(); ++itb, ++itr)
         {
           carry += *itr + *itb * static_cast<twodigits>(a[i]);
@@ -219,8 +199,35 @@ namespace symxx
       }
     }
     
+    //positive for a>b, 0 for a==b, negative for a<b
+    int digits_cmp(const std::span<const digit> a, const std::span<const digit> b, bool apositive = true,
+                   bool bpositive = true)
+    {
+      sdigit sign =
+          (apositive ? 1 : -1) * static_cast<sdigit>(a.size()) - (bpositive ? 1 : -1) * static_cast<sdigit>(b.size());
+      if (sign == 0)
+      {
+        sdigit diff = 0;
+        for (auto i = static_cast<long long>(a.size()); --i >= 0;)
+        {
+          diff = static_cast<sdigit>(a[i]) - static_cast<sdigit>(b[i]);
+          if (diff != 0)
+          {
+            break;
+          }
+        }
+        sign = apositive ? diff : -diff;
+      }
+      return sign;
+    }
+    
     void digits_mul(const std::span<const digit> c, const std::span<const digit> d, std::vector<digit> &ret)
     {
+      if (c.empty() || d.empty())
+      {
+        ret.clear();
+        return;
+      }
       ret.clear();
       auto &a = c.size() < d.size() ? c : d;
       auto &b = c.size() < d.size() ? d : c;
@@ -231,9 +238,7 @@ namespace symxx
       if (a.size() <= i)
       {
         if (a.size() == 0)
-        {
           return;
-        }
         else
         {
           digits_simple_mul(a, b, ret);
@@ -244,7 +249,7 @@ namespace symxx
       //if (2 * a.size() <= b.size())
       //  return k_lopsided_mul(a, b);
       size_t shift = b.size() >> 1;
-      auto[ah, al] = k_mul_split(a, shift);
+      auto[ah, al] = helper::k_mul_split(a, shift);
       decltype(ah) bh, bl;
       if (eq)
       {
@@ -253,7 +258,7 @@ namespace symxx
       }
       else
       {
-        auto s = k_mul_split(b, shift);
+        auto s = helper::k_mul_split(b, shift);
         bh = std::get<0>(s);
         bl = std::get<1>(s);
       }
@@ -267,8 +272,8 @@ namespace symxx
       std::copy(t2.begin(), t2.end(), ret.begin());
       
       i = ret.size() - shift;
-      digits_inplace_sub({ret.begin() + shift, i}, t2);
-      digits_inplace_sub({ret.begin() + shift, i}, t1);
+      helper::digits_inplace_sub({ret.begin() + shift, i}, t2);
+      helper::digits_inplace_sub({ret.begin() + shift, i}, t1);
       digits_add(ah, al, t1);
       if (eq)
       {
@@ -281,7 +286,7 @@ namespace symxx
       
       std::vector<digit> t3;
       digits_mul(t1, t2, t3);
-      digits_inplace_add({ret.begin() + shift, i}, t3);
+      helper::digits_inplace_add({ret.begin() + shift, i}, t3);
       while (ret.back() == 0)
       {
         ret.pop_back();
@@ -315,7 +320,7 @@ namespace symxx
       }
       else if (cmp < 0)
       {
-        res = {0};
+        res.clear();
         rem.insert(rem.end(), a.begin(), a.end());
         return;
       }
@@ -325,21 +330,21 @@ namespace symxx
         digits_divrem_by1(a, b[0], res, rem);
         return;
       }
-      
+  
       size_t sz_a = a.size();
       size_t sz_b = b.size();
-      
+  
       std::vector<digit> v(sz_a + 1, 0);
       std::vector<digit> w(sz_b, 0);
-      int d = SYMXX_HUGE_SHIFT - bit_length(b.back());
-      digits_left_shift(w, b, sz_b, d);
-      digit carry = digits_left_shift(v, a, sz_a, d);
+      int d = SYMXX_HUGE_SHIFT - helper::bit_length(b.back());
+      helper::digits_left_shift(w, b, sz_b, d);
+      digit carry = helper::digits_left_shift(v, a, sz_a, d);
       if (carry != 0 || v[sz_a - 1] >= w[sz_b - 1])
       {
         v[sz_a] = carry;
         sz_a++;
       }
-      
+  
       size_t k = sz_a - sz_b;
       res.resize(k);
       digit wm1 = w[sz_b - 1];
@@ -385,7 +390,7 @@ namespace symxx
         *--sk = q;
       }
       // reuse w to store the rem
-      digits_right_shift(w, v, sz_b, d);
+      helper::digits_right_shift(w, v, sz_b, d);
       std::swap(rem, w);
     }
     
@@ -395,24 +400,42 @@ namespace symxx
       std::vector<digit> tmp;
       digits_divrem(cd, dd, tmp, rem);
     }
+    
+    void digits_bitwise(const std::span<const digit> &a, const std::span<const digit> &b,
+                        const std::function<digit(digit, digit)> &process)
+    {
+    
+    }
   }
   class Huge
   {
     friend std::ostream &operator<<(std::ostream &os, const Huge &i);
   
     friend std::tuple<Huge, Huge> divrem(const Huge &h1, const Huge &h2);
+
   private:
     std::vector<digit> digits;
     bool is_positive;
-  
+
   public:
+    Huge() : is_positive(true) {}
+  
+    template<typename U, typename = std::enable_if_t<std::is_integral_v<U>>>
+    Huge(const U &val): is_positive(val >= 0)
+    {
+      for (U u = val > 0 ? val : static_cast<U>(0) - val;
+           u != 0; u >>= static_cast<U>(SYMXX_HUGE_SHIFT))
+      {
+        digits.emplace_back(static_cast<digit>(u & SYMXX_HUGE_LOW_MASK));
+      }
+    }
+  
     Huge(std::vector<digit> s, bool p = true) : digits(std::move(s)), is_positive(p) {}
-    
+  
     Huge(const std::string &s)
     {
-      if (s.empty())
-        throw Error("Invaild string.");
-  
+      if (s.empty()) throw Error("Invaild string.");
+    
       std::size_t pos = 0;
       is_positive = true;
       if (s[0] == '+')
@@ -428,7 +451,7 @@ namespace symxx
       constexpr size_t convmultmax = 1000000000;
       const double sz = static_cast<double>(s.size() - pos) * std::log(10) / std::log(32768) + 1;
       digits.reserve(static_cast<size_t>(sz));
-  
+    
       while (pos < s.size())
       {
         twodigits c = s[pos++] - '0';
@@ -438,16 +461,16 @@ namespace symxx
           ++i;
           c = static_cast<twodigits>(c * 10 + s[pos] - '0');
         }
-    
+  
         twodigits convmult = convmultmax;
-    
+  
         if (i != convwidth) // the end of string
         {
           convmult = 10;
           for (; i > 1; --i)
             convmult *= 10;
         }
-    
+  
         // put c to digits
         for (auto &p: digits)
         {
@@ -466,13 +489,27 @@ namespace symxx
     Huge &operator+=(const Huge &h)
     {
       std::vector<digit> tmp;
-      if (h.is_positive)
+      if ((h.is_positive && is_positive) || (!h.is_positive && !is_positive))
       {
         internal::digits_add(digits, h.digits, tmp);
       }
       else
       {
-        internal::digits_sub(digits, h.digits, tmp);
+        int cmp = internal::digits_cmp(digits, h.digits);
+        if (cmp == 0)
+        {
+          digits.clear();
+          return *this;
+        }
+        else if (cmp < 0)
+        {
+          is_positive = !is_positive;
+          internal::digits_sub(h.digits, digits, tmp);
+        }
+        else
+        {
+          internal::digits_sub(digits, h.digits, tmp);
+        }
       }
       std::swap(tmp, digits);
       return *this;
@@ -480,46 +517,35 @@ namespace symxx
   
     Huge operator+(const Huge &h) const
     {
-      std::vector<digit> tmp;
-      if (h.is_positive)
-      {
-        internal::digits_add(digits, h.digits, tmp);
-      }
-      else
-      {
-        internal::digits_sub(digits, h.digits, tmp);
-      }
-      return tmp;
+      auto i = *this;
+      i += h;
+      return i;
     }
   
     Huge &operator-=(const Huge &h)
     {
       std::vector<digit> tmp;
-      if (h.is_positive)
+      int cmp = internal::digits_cmp(digits, h.digits);
+      if (cmp == 0)
       {
-        int cmp = internal::digits_cmp(digits, h.digits);
-        if (cmp < 0)
-        {
-          is_positive = false;
-        }
-        else if (cmp == 0)
-        {
-          digits.clear();
-          return *this;
-        }
-    
-        if (is_positive)
-        {
-          internal::digits_sub(digits, h.digits, tmp);
-        }
-        else
-        {
-          internal::digits_sub(h.digits, digits, tmp);
-        }
+        digits.clear();
+        return *this;
+      }
+      if ((h.is_positive && !is_positive) || (!h.is_positive && is_positive))
+      {
+        internal::digits_add(digits, h.digits, tmp);
       }
       else
       {
-        internal::digits_add(digits, h.digits, tmp);
+        if (cmp < 0)
+        {
+          is_positive = !is_positive;
+          internal::digits_sub(h.digits, digits, tmp);
+        }
+        else
+        {
+          internal::digits_sub(digits, h.digits, tmp);
+        }
       }
       std::swap(tmp, digits);
       return *this;
@@ -535,14 +561,7 @@ namespace symxx
     Huge &operator*=(const Huge &h)
     {
       std::vector<digit> tmp;
-      if ((h.is_positive && is_positive) || (!h.is_positive && !is_positive))
-      {
-        is_positive = true;
-      }
-      else
-      {
-        is_positive = false;
-      }
+      is_positive = ((h.is_positive && is_positive) || (!h.is_positive && !is_positive));
       internal::digits_mul(digits, h.digits, tmp);
       std::swap(tmp, digits);
       return *this;
@@ -557,18 +576,8 @@ namespace symxx
     
     Huge &operator/=(const Huge &h)
     {
-      if (h.digits.size() == 0)
-      {
-        throw Error("Huge can not be divided by zero.");
-      }
-      if ((h.is_positive && is_positive) || (!h.is_positive && !is_positive))
-      {
-        is_positive = true;
-      }
-      else
-      {
-        is_positive = false;
-      }
+      if (h.digits.size() == 0) throw Error("Huge can not be divided by zero.");
+      is_positive = ((h.is_positive && is_positive) || (!h.is_positive && !is_positive));
       std::vector<digit> res;
       std::vector<digit> rem;
       internal::digits_divrem(digits, h.digits, res, rem);
@@ -628,19 +637,44 @@ namespace symxx
       return internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) >= 0;
     }
   
-    template<typename T>
-    T to() const
+    template<typename U>
+    U to() const
     {
-      T result = 0;
-      for (size_t i = 0; i < digits.size(); ++i)
+      if (digits.empty()) return static_cast<U>(0);
+      if (!is_positive && std::is_unsigned_v<U>)
       {
-        result += digits[i] * std::pow(2, SYMXX_HUGE_SHIFT * i);
+        throw Error("The Huge is negative but U is unsigned.[" + to_string() + "].");
       }
-      return result;
+      if (digits.size() == 1
+          && digits[0] <= std::numeric_limits<U>::max()
+          && static_cast<sdigit>(digits[0]) >= std::numeric_limits<U>::lowest())
+      {
+        return static_cast<U>(digits[0]) * static_cast<U>(static_cast<int>(is_positive ? 1 : -1));
+      }
+      else
+      {
+        U result = 0;
+        for (auto rit = digits.crbegin(); rit < digits.crend(); ++rit)
+        {
+          result |= static_cast<twodigits>(*rit);
+          if (rit < digits.crend() - 1)
+          {
+            if (internal::helper::bit_length(result) + SYMXX_HUGE_SHIFT > sizeof(U) * 8)
+            {
+              throw Error("The Huge is too big.[" + to_string() + "].");
+            }
+            result <<= SYMXX_HUGE_SHIFT;
+          }
+        }
+        return result * static_cast<U>(static_cast<int>((is_positive ? 1 : -1)));
+      }
+      return 0;
     }
-    
+  
     std::string to_string() const
     {
+      constexpr digit decimal_shift = 9;
+      constexpr digit decimal_base = static_cast<digit>(1000000000);
       std::vector<digit> out;
       for (auto rit = digits.crbegin(); rit < digits.crend(); ++rit)
       {
@@ -648,21 +682,21 @@ namespace symxx
         for (auto &j: out)
         {
           twodigits z = static_cast<twodigits>(j) << SYMXX_HUGE_SHIFT | hi;
-          hi = static_cast<digit>(z / SYMXX_HUGE_DECIMAL_BASE);
-          j = static_cast<digit>(z - static_cast<twodigits>(hi) * SYMXX_HUGE_DECIMAL_BASE);
+          hi = static_cast<digit>(z / decimal_base);
+          j = static_cast<digit>(z - static_cast<twodigits>(hi) * decimal_base);
         }
         while (hi != 0)
         {
-          out.emplace_back(hi % SYMXX_HUGE_DECIMAL_BASE);
-          hi /= SYMXX_HUGE_DECIMAL_BASE;
+          out.emplace_back(hi % decimal_base);
+          hi /= decimal_base;
         }
       }
-  
+    
       if (out.empty()) // *this == 0
         out.emplace_back(0);
-  
+    
       // fill the string from right to left
-      size_t len = (is_positive ? 0 : 1) + 1 + (out.size() - 1) * SYMXX_HUGE_DECIMAL_SHIFT;
+      size_t len = (is_positive ? 0 : 1) + 1 + (out.size() - 1) * decimal_shift;
       digit tenpow = 10;
       digit rem = out.back();
       while (rem >= tenpow)
@@ -672,11 +706,11 @@ namespace symxx
       }
       std::string ret(len, '\0');
       auto ret_it = ret.rbegin();
-  
+    
       for (auto it = out.cbegin(); it < out.cend() - 1; ++it)
       {
         rem = *it;
-        for (size_t j = 0; j < SYMXX_HUGE_DECIMAL_SHIFT; ++j)
+        for (size_t j = 0; j < decimal_shift; ++j)
         {
           *(ret_it++) = '0' + rem % 10;
           rem /= 10;
@@ -688,7 +722,7 @@ namespace symxx
         *(ret_it++) = '0' + rem % 10;
         rem /= 10;
       } while (rem != 0);
-  
+    
       if (!is_positive)
       {
         *(ret_it++) = '-';
@@ -710,14 +744,7 @@ namespace symxx
       throw Error("Huge can not be divided by zero.");
     }
     bool is_positive;
-    if ((h1.is_positive && h2.is_positive) || (!h1.is_positive && !h2.is_positive))
-    {
-      is_positive = true;
-    }
-    else
-    {
-      is_positive = false;
-    }
+    is_positive = ((h1.is_positive && h2.is_positive) || (!h1.is_positive && !h2.is_positive));
     std::vector<digit> res;
     std::vector<digit> rem;
     internal::digits_divrem(h1.digits, h2.digits, res, rem);

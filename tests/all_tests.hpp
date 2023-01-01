@@ -11,26 +11,23 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
-#ifndef SYMXX_UTILS_HPP
-#define SYMXX_UTILS_HPP
-#include "num.hpp"
-#include "frac.hpp"
-#include "error.hpp"
-#include <utility>
-#include <map>
-#include <string>
-namespace symxx
+#ifndef SYMXX_ALL_TESTS_HPP
+#define SYMXX_ALL_TESTS_HPP
+
+#include "unittest.hpp"
+#include "huge_test.hpp"
+#include "dtoa_test.hpp"
+#include "num_test.hpp"
+
+namespace symxx::test
 {
-  template<typename T>
-  std::pair<Frac < T>, Frac <T>>
-  
-  solve_quadratic(const Rational <T> &a, const Rational <T> &b, const Rational <T> &c)
+  Test get_all_tests()
   {
-    Rational<T> delta = (b ^ 2) - (a * c * 4);
-    Frac<T> gdelta{nth_root(2, delta)};
-    auto x1 = (Frac<T>{b.negate()} + gdelta) / Frac<T>{a * 2};
-    auto x2 = (Frac<T>{b.negate()} - gdelta) / Frac<T>{a * 2};
-    return {x1, x2};
+    Test test;
+    test.add_test_adder("huge", huge_test);
+    test.add_test_adder("dtoa", dtoa_test);
+    test.add_test_adder("num", num_test);
+    return test;
   }
 }
 #endif

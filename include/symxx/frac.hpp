@@ -162,7 +162,7 @@ namespace symxx
       return tm;
     }
   
-    Term opposite() const { return {coe.opposite(), symbols, env}; }
+    Term negate() const { return {coe.negate(), symbols, env}; }
   
     template<typename U>
     U to() const
@@ -365,7 +365,7 @@ namespace symxx
     
     Poly &operator-=(const Poly &i)
     {
-      *this += i.opposite();
+      *this += i.negate();
       reduce();
       return *this;
     }
@@ -402,7 +402,7 @@ namespace symxx
       auto b = i.try_eval();
       if (a != nullptr && b != nullptr)
       {
-        return Poly{Term < T > {*a * *b}};
+        return Poly{Term<T>{*a * *b}};
       }
       Poly p = *this;
       p *= i;
@@ -425,7 +425,7 @@ namespace symxx
       auto b = i.try_eval();
       if (a != nullptr && b != nullptr)
       {
-        return Poly{Term < T > {*a / *b}};
+        return Poly{Term<T>{*a / *b}};
       }
       auto p = *this;
       p /= i;
@@ -483,19 +483,19 @@ namespace symxx
       auto a = try_eval();
       if (a != nullptr)
       {
-        return Poly{Term < T > {*a ^ i}};
+        return Poly{Term<T>{*a ^ i}};
       }
       auto p = *this;
       p ^= i;
       return p;
     }
   
-    Poly opposite() const
+    Poly negate() const
     {
       auto a = *this;
       for (auto &r: a.poly)
       {
-        r = r.opposite();
+        r = r.negate();
       }
       return a;
     }
@@ -645,7 +645,7 @@ namespace symxx
       if (!it->is_positive())
       {
         os << "-";
-        os << it->opposite();
+        os << it->negate();
         continue;
       }
       else
@@ -738,7 +738,7 @@ namespace symxx
     
     Frac &operator-=(const Frac &t)
     {
-      *this += t.opposite();
+      *this += t.negate();
       reduce();
       return *this;
     }
@@ -870,11 +870,11 @@ namespace symxx
       }
       for (auto &r: numerator.get_poly())
       {
-        r *= Term < T > {den, {}, env};
+        r *= Term<T>{den, {}, env};
       }
       for (auto &r: denominator.get_poly())
       {
-        r *= Term < T > {den, {}, env};
+        r *= Term<T>{den, {}, env};
       }
   
       T g = std::gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
@@ -897,10 +897,10 @@ namespace symxx
       numerator /= g;
       denominator /= g;
     }
-    
-    Frac opposite() const
+  
+    Frac negate() const
     {
-      auto a = numerator.opposite();
+      auto a = numerator.negate();
       return {a, denominator, env};
     }
     

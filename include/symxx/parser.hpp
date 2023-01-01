@@ -208,7 +208,7 @@ namespace symxx
         else
         {
           parsing_negative = false;
-          return {ExprTokenType::DIGIT, Frac<T>{Rational<T>{temp}}.opposite()};
+          return {ExprTokenType::DIGIT, Frac<T>{Rational<T>{temp}}.negate()};
         }
       }
       else if (std::isalpha(ch) || ch == '{')

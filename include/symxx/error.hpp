@@ -16,9 +16,6 @@
 #include <string>
 #include <stdexcept>
 #include <experimental/source_location>
-#define _SYMXX_STRINGFY(x) #x
-#define SYMXX_STRINGFY(x) _SYMXX_STRINGFY(x)
-#define SYMXX_ERROR_LOCATION __FILE__ ":line " SYMXX_STRINGFY(__LINE__)
 namespace symxx
 {
   class Error : public std::logic_error

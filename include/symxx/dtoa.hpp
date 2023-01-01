@@ -359,10 +359,7 @@ namespace symxx
     
     DiyFp operator-(const DiyFp &x) const
     {
-      if (e != x.e || f < x.f)
-      {
-        throw Error("These DiyFps can not minus.");
-      }
+      if (e != x.e || f < x.f) throw Error("These DiyFps can not minus.");
       return {f - x.f, e};
     }
     
@@ -524,8 +521,7 @@ namespace symxx
       buffer += '-';
       K = -K;
     }
-    else
-      buffer += '+';
+  
     if (K >= 100)
     {
       buffer += static_cast<char>(static_cast<int>('0') + K / 100);

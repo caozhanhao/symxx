@@ -16,18 +16,44 @@
 #include <map>
 #include <string>
 #include <tuple>
+
+using IntType = int;
+
+#include "all_tests.hpp"
+
 using namespace symxx;
-using IntType = long long int;
+
+int unittest()
+{
+  try
+  {
+    test::Test test = test::get_all_tests();
+    test.enable_all_tests();
+    test.run_tests();
+    test.print_results();
+  }
+  catch (Error &e)
+  {
+    std::cerr << e.get_content() << std::endl;
+  }
+  return 0;
+}
+
 void print_func(const std::string &name, const std::tuple<std::vector<std::string>, ExprNode<IntType>> &func)
 {
   std::string argstr;
-  for (auto &a : std::get<0>(func))
+  for (auto &a: std::get<0>(func))
+  {
     argstr += a + ",";
+  }
   if (!argstr.empty())
+  {
     argstr.pop_back();
+  }
   std::cout << "Function: " << name << "(" << argstr << ") = "
             << std::get<1>(func) << std::endl;
 }
+
 void print_result(const ExprNode<IntType> &expr)
 {
   auto fp = expr.try_eval();
@@ -51,6 +77,7 @@ void print_var(const std::string &name, const Real<IntType> &var)
 
 int main()
 {
+  unittest();
   std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
   std::map<std::string, Real<IntType>> vars{
       {"pi", Rational<IntType>{157, 50}},
@@ -225,18 +252,8 @@ int main()
     }
     catch (Error &e)
     {
-      std::cout << e.get_content() << std::endl;
+      std::cerr << e.get_content() << std::endl;
     }
   }
   return 0;
 }
-
-//#include "unittest.hpp"
-////Huge debug(unfinished)
-// int main()
-//{
-//  test::huge_test();
-//  test::all_tests.run_all_tests();
-//  test::all_tests.print_results();
-//  return 0;
-//}
