@@ -107,25 +107,21 @@ namespace symxx::test
     return std::to_string(a);
   }
   
-  template<>
   std::string to_str(const char *a)
   {
     return {a};
   }
   
-  template<>
   std::string to_str(std::string a)
   {
     return a;
   }
   
-  template<>
   std::string to_str(bool a)
   {
     return a ? "true" : "false";
   }
   
-  template<>
   std::string to_str(const Huge &a)
   {
     return a.to_string();
@@ -135,25 +131,19 @@ namespace symxx::test
   {
   private:
     size_t success;
-    std::map<const std::string, const std::function<void(Test &)>> tests_adders;
-    std::vector<std::function<void()>> enabled_tests;
+    std::vector<std::function<void()>> all_tests;
     std::set<size_t> exceptions;
     double time;
   public:
     Test() : success(0), time(-1) {}
-    
-    void add_test_adder(const std::string &name, const std::function<void(Test &)> &f)
-    {
-      tests_adders.insert({name, f});
-    }
-    
+  
     template<typename T1, typename T2>
-    void add_expected_eq(const std::string &err_msg, const T1 &t1, const T2 &t2,
-                         const std::experimental::source_location &l =
-                         std::experimental::source_location::current())
+    void expected_eq(const std::string &err_msg, const T1 &t1, const T2 &t2,
+                     const std::experimental::source_location &l =
+                     std::experimental::source_location::current())
     {
-      enabled_tests.template emplace_back(
-          [this, t1, t2, err_msg, pos = enabled_tests.size(),
+      all_tests.template emplace_back(
+          [this, t1, t2, err_msg, pos = all_tests.size(),
               location = std::string(l.file_name()) + ":"
                          + std::to_string(l.line()) +
                          ":" + l.function_name() + "()"]()
@@ -170,13 +160,13 @@ namespace symxx::test
             }
           });
     }
-    
-    void add_test_func(const std::string &err_msg, std::function<std::tuple<int, std::string>()> func,
-                       const std::experimental::source_location &l =
-                       std::experimental::source_location::current())
+  
+    void expected_success(const std::string &err_msg, std::function<std::tuple<int, std::string>()> func,
+                          const std::experimental::source_location &l =
+                          std::experimental::source_location::current())
     {
-      enabled_tests.template emplace_back(
-          [this, func, err_msg, pos = enabled_tests.size(),
+      all_tests.template emplace_back(
+          [this, func, err_msg, pos = all_tests.size(),
               location = std::string(l.file_name()) + ":"
                          + std::to_string(l.line()) +
                          ":" + l.function_name() + "()"]()
@@ -195,42 +185,15 @@ namespace symxx::test
           });
     }
     
-    void enable_all_tests()
-    {
-      for (auto &adder: tests_adders)
-      {
-        adder.second(*this);
-      }
-    }
-    
-    void enable_a_test(const std::string &test_name)
-    {
-      auto it = tests_adders.find(test_name);
-      if (it == tests_adders.end())
-      {
-        int min_distance = std::numeric_limits<int>::max();
-        std::string guess;
-        for (auto &r: tests_adders)
-        {
-          if (get_edit_distance(r.first, test_name) < min_distance)
-          {
-            guess = r.first;
-          }
-        }
-        throw Error("Unknown test named '" + test_name + "'.Did you mean '" + guess + "'?\n");
-      }
-      it->second(*this);
-    }
-    
     void run_tests()
     {
       Timer timer;
       timer.start();
-      for (size_t i = 0; i < enabled_tests.size(); ++i)
+      for (size_t i = 0; i < all_tests.size(); ++i)
       {
         try
         {
-          enabled_tests[i]();
+          all_tests[i]();
         }
         catch (Error &e)
         {
@@ -245,16 +208,16 @@ namespace symxx::test
     
     void print_results()
     {
-      if (success == enabled_tests.size())
+      if (success == all_tests.size())
       {
         std::cout << ("\033[0;32;32mUNITTEST PASSED\033[m: All "
-                      + std::to_string(enabled_tests.size()) + " tests passed.") << std::endl;
+                      + std::to_string(all_tests.size()) + " tests passed.") << std::endl;
       }
       else
       {
         std::cout << ("\033[0;32;31mUNITTEST FAILED\033[m: All "
-                      + std::to_string(enabled_tests.size()) + " tests, "
-                      + std::to_string(enabled_tests.size() - success) + " tests failed.") << std::endl;
+                      + std::to_string(all_tests.size()) + " tests, "
+                      + std::to_string(all_tests.size() - success) + " tests failed.") << std::endl;
       }
       if (!exceptions.empty())
       {

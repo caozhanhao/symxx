@@ -31,35 +31,31 @@ namespace symxx
   {
     template<typename U>
     friend std::ostream &operator<<(std::ostream &os, const Term<U> &i);
-  
+
   private:
     Real <T> coe;
     std::map<std::string, Rational < T>> symbols;
     Environment<T> env;
-  
+
   public:
-    Term(Real <T> c,
-         const std::map<std::string, Rational < T>>
-    
-    &
+    Term(Real <T> c, std::map<std::string, Rational < T>>
+  
     u = {},
-        Environment<T>
-    e = nullptr
+    Environment<T> e = nullptr
     )
     :
-    
-    coe (c), symbols(u), env(e)
+  
+    coe (std::move(c)), symbols(std::move(u)), env(e)
     {
       reduce();
     }
-    
-    Term(Real <T> c,
-         const std::string &sym)
-        : coe(c), symbols({{sym, 1}}), env(nullptr)
+  
+    Term(Real <T> c, const std::string &sym)
+        : coe(std::move(c)), symbols({{sym, 1}}), env(nullptr)
     {
       reduce();
     }
-    
+  
     Term(const Term &t)
         : coe(t.coe), symbols(t.symbols)
     {
@@ -69,9 +65,9 @@ namespace symxx
       }
       reduce();
     }
-    
-    void set_env(Environment <T> e) { env = e; }
-    
+  
+    void set_env(Environment<T> e) { env = e; }
+  
     bool operator<(const Term &t) const
     {
       auto a = get_symbols();
@@ -144,22 +140,16 @@ namespace symxx
       return tm;
     }
   
-    Term &operator^=(const Rational <T> &t)
+    Term pow(const Rational <T> &t) const
     {
-      coe ^= t;
-      for (auto &r: symbols)
+      auto res = *this;
+      res.coe = res.coe.pow(t);
+      for (auto &r: res.symbols)
       {
         r.second *= t;
       }
-      reduce();
-      return *this;
-    }
-  
-    Term operator^(const Rational <T> &t)
-    {
-      auto tm = *this;
-      tm ^= t;
-      return tm;
+      res.reduce();
+      return res;
     }
   
     Term negate() const { return {coe.negate(), symbols, env}; }
@@ -215,7 +205,7 @@ namespace symxx
         auto it = env->find(r.first);
         if (it != env->end())
         {
-          a *= (it->second ^ r.second);
+          a *= (it->second.pow(r.second));
         }
       }
       return a;
@@ -283,7 +273,7 @@ namespace symxx
       auto exp = it->second;
       if (exp != 1)
       {
-        os << "(" << it->first << "^" << exp << ")";
+        os << "(" << it->first << "**" << exp << ")";
       }
       else
       {
@@ -334,30 +324,36 @@ namespace symxx
   {
     template<typename U>
     friend std::ostream &operator<<(std::ostream &os, const Poly<U> &i);
-  
+
   private:
     std::vector<Term<T>> poly;
-  
+
   public:
     Poly(std::initializer_list<Term<T>> p)
         : poly(p)
     {
       reduce();
     }
-    
+  
+    Poly(std::vector<Term<T>> p)
+        : poly(std::move(p))
+    {
+      reduce();
+    }
+  
     Poly &operator+=(const Poly &i)
     {
       poly.insert(poly.end(), i.poly.cbegin(), i.poly.cend());
       reduce();
       return *this;
     }
-    
+  
     Poly operator+(const Poly &i) const
     {
-      auto a = try_eval();
-      auto b = i.try_eval();
-      if (a != nullptr && b != nullptr)
+      if (auto a = try_eval(), b = i.try_eval();a != nullptr && b != nullptr)
+      {
         return Poly{Term<T>{*a + *b}};
+      }
       auto p = *this;
       p += i;
       return p;
@@ -372,10 +368,10 @@ namespace symxx
     
     Poly operator-(const Poly &i) const
     {
-      auto a = try_eval();
-      auto b = i.try_eval();
-      if (a != nullptr && b != nullptr)
+      if (auto a = try_eval(), b = i.try_eval(); a != nullptr && b != nullptr)
+      {
         return Poly{Term<T>{*a - *b}};
+      }
       auto p = *this;
       p -= i;
       return p;
@@ -398,9 +394,7 @@ namespace symxx
   
     Poly operator*(const Poly &i) const
     {
-      auto a = try_eval();
-      auto b = i.try_eval();
-      if (a != nullptr && b != nullptr)
+      if (auto a = try_eval(), b = i.try_eval();a != nullptr && b != nullptr)
       {
         return Poly{Term<T>{*a * *b}};
       }
@@ -421,42 +415,31 @@ namespace symxx
   
     Poly operator/(const Real <T> &i) const
     {
-      auto a = try_eval();
-      auto b = i.try_eval();
-      if (a != nullptr && b != nullptr)
-      {
-        return Poly{Term<T>{*a / *b}};
-      }
+      if (auto a = try_eval(), b = i.try_eval();a != nullptr && b != nullptr) return Poly{Term<T>{*a / *b}};
       auto p = *this;
       p /= i;
       return p;
     }
   
-    Poly &operator^=(const Rational <T> &i)
+    Poly pow(const Rational <T> &i) const
     {
-      if (i == 0)
-      {
-        *this = {Term<T>(1)};
-        return *this;
-      }
-      else if (i == 1)
-      {
-        return *this;
-      }
-      else if (poly.size() == 1)
-      {
-        poly[0] ^= i;
-        return *this;
-      }
-      
+      if (i == 0) { return {Term<T>(1)}; }
+      else if (i == 1) { return *this; }
+      else if (poly.size() == 1) { return Poly{{poly[0].pow(i)}}; }
+      else if (auto a = try_eval(); a != nullptr) return Poly{Term<T>{a->pow(i)}};
+    
       std::vector<Term<T>> res;
-      using pT = std::make_unsigned_t<T>;
+      using pT = utils::Make_unsigned_t<T>;
       if (!i.is_int())
+      {
         throw Error("Must be a int.");
+      }
       auto avecvec = solve_variable_eq(i.to_t(), static_cast<T>(poly.size()));
       pT i_factorial = 1;
       for (pT t = 1; t <= i.to_t(); ++t)
+      {
         i_factorial *= t;
+      }
       for (auto &avec: avecvec)
       {
         Rational<T> q = i_factorial;
@@ -470,33 +453,18 @@ namespace symxx
         Term<T> tmp{q};
         for (pT k = 0; k < poly.size(); ++k)
         {
-          tmp *= poly[k] ^ avec[k];
+          tmp *= poly[static_cast<size_t>(k)].pow(avec[static_cast<size_t>(k)]);
         }
         res.emplace_back(tmp);
       }
-      poly = std::move(res);
-      return *this;
-    }
-  
-    Poly operator^(const Rational <T> &i) const
-    {
-      auto a = try_eval();
-      if (a != nullptr)
-      {
-        return Poly{Term<T>{*a ^ i}};
-      }
-      auto p = *this;
-      p ^= i;
-      return p;
+      return Poly<T>{res};
     }
   
     Poly negate() const
     {
       auto a = *this;
       for (auto &r: a.poly)
-      {
         r = r.negate();
-      }
       return a;
     }
   
@@ -727,10 +695,10 @@ namespace symxx
     
     Frac operator+(const Frac &t) const
     {
-      auto a = try_eval();
-      auto b = t.try_eval();
-      if (a != nullptr && b != nullptr)
+      if (auto a = try_eval(), b = t.try_eval();a != nullptr && b != nullptr)
+      {
         return {*a + *b, env};
+      }
       auto c = *this;
       c += t;
       return c;
@@ -745,10 +713,10 @@ namespace symxx
     
     Frac operator-(const Frac &t) const
     {
-      auto a = try_eval();
-      auto b = t.try_eval();
-      if (a != nullptr && b != nullptr)
+      if (auto a = try_eval(), b = t.try_eval();a != nullptr && b != nullptr)
+      {
         return {*a - *b, env};
+      }
       auto c = *this;
       c -= t;
       return c;
@@ -766,10 +734,10 @@ namespace symxx
     
     Frac operator*(const Frac &t) const
     {
-      auto a = try_eval();
-      auto b = t.try_eval();
-      if (a != nullptr && b != nullptr)
+      if (auto a = try_eval(), b = t.try_eval();a != nullptr && b != nullptr)
+      {
         return {*a * *b, env};
+      }
       auto c = *this;
       c *= t;
       return c;
@@ -785,34 +753,20 @@ namespace symxx
   
     Frac operator/(const Frac &t) const
     {
-      auto a = try_eval();
-      auto b = t.try_eval();
-      if (a != nullptr && b != nullptr)
-      {
-        return {*a / *b, env};
-      }
+      if (auto a = try_eval(), b = t.try_eval();a != nullptr && b != nullptr) return {*a / *b, env};
       auto c = *this;
       c /= t;
       return c;
     }
   
-    Frac &operator^=(const Rational <T> &i)
-    {
-      numerator ^= i;
-      denominator ^= i;
-      reduce();
-      return *this;
-    }
   
-    Frac operator^(const Rational <T> &i) const
+    Frac pow(const Rational <T> &i) const
     {
-      auto a = try_eval();
-      if (a != nullptr)
-      {
-        return {*a ^ i, env};
-      }
+      if (auto a = try_eval();a != nullptr) return {a->pow(i), env};
       auto c = *this;
-      c ^= i;
+      c.numerator = numerator.pow(i);
+      c.denominator = denominator.pow(i);
+      c.reduce();
       return c;
     }
   
@@ -877,13 +831,13 @@ namespace symxx
         r *= Term<T>{den, {}, env};
       }
   
-      T g = std::gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
-                     denominator.get_poly()[0].get_coe().get_coe().to_t());
+      T g = utils::Gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
+                       denominator.get_poly()[0].get_coe().get_coe().to_t());
       for (auto &n: numerator.get_poly())
       {
         for (std::size_t i = 1; i < denominator.get_poly().size(); ++i)
         {
-          T new_g = std::gcd(n.get_coe().get_coe().to_t(), denominator.get_poly()[i].get_coe().get_coe().to_t());
+          T new_g = utils::Gcd(n.get_coe().get_coe().to_t(), denominator.get_poly()[i].get_coe().get_coe().to_t());
           if (g % new_g == 0)
           {
             g = std::min(g, new_g);

@@ -24,10 +24,25 @@ namespace symxx::test
   Test get_all_tests()
   {
     Test test;
-    test.add_test_adder("huge", huge_test);
-    test.add_test_adder("dtoa", dtoa_test);
-    test.add_test_adder("num", num_test);
+    add_huge_test(test);
+    add_dtoa_test(test);
+    add_num_test(test);
     return test;
+  }
+  
+  int unittest()
+  {
+    try
+    {
+      test::Test test = test::get_all_tests();
+      test.run_tests();
+      test.print_results();
+    }
+    catch (Error &e)
+    {
+      std::cerr << e.get_content() << std::endl;
+    }
+    return 0;
   }
 }
 #endif

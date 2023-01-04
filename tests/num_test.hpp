@@ -18,15 +18,15 @@
 
 namespace symxx::test
 {
-  void num_test(Test &test)
+  void add_num_test(Test &test)
   {
-    test.add_test_func("Rational", []() -> std::tuple<int, std::string>
+    test.expected_success("Rational", []() -> std::tuple<int, std::string>
     {
       //unfinished
       //reduce
-      Rational <IntType> s1{6, 2};
-      Rational <IntType> s2{3, 1};
-      Rational <IntType> s3{18, 6};
+      Rational<int> s1{6, 2};
+      Rational<int> s2{3, 1};
+      Rational<int> s3{18, 6};
       if (s1 == s2 && s2 == s3)
       {
         return {0, ""};

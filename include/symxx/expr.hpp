@@ -134,7 +134,7 @@ namespace symxx
           {
             return nullptr;
           }
-          return std::make_unique<Frac<T>>(*lhsv ^ rhsv->template to<Rational<T>>());
+          return std::make_unique<Frac<T>>(lhsv->pow(rhsv->template to<Rational<T>>()));
         }
           break;
         default:
@@ -179,7 +179,7 @@ namespace symxx
             data.lhs->reduce();
             return;
           }
-          val = *lhsv ^ power->template to<Rational<T>>();
+          val = lhsv->pow(power->template to<Rational<T>>());
         }
           break;
         default:

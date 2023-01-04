@@ -12,32 +12,14 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 #include "symxx/symxx.hpp"
+#include "all_tests.hpp"
 #include <iostream>
 #include <map>
 #include <string>
 #include <tuple>
 
-using IntType = int;
-
-#include "all_tests.hpp"
-
 using namespace symxx;
-
-int unittest()
-{
-  try
-  {
-    test::Test test = test::get_all_tests();
-    test.enable_all_tests();
-    test.run_tests();
-    test.print_results();
-  }
-  catch (Error &e)
-  {
-    std::cerr << e.get_content() << std::endl;
-  }
-  return 0;
-}
+using IntType = Huge;
 
 void print_func(const std::string &name, const std::tuple<std::vector<std::string>, ExprNode<IntType>> &func)
 {
@@ -56,15 +38,20 @@ void print_func(const std::string &name, const std::tuple<std::vector<std::strin
 
 void print_result(const ExprNode<IntType> &expr)
 {
-  auto fp = expr.try_eval();
-  if (fp != nullptr && fp->no_symbols())
+  if (auto fp = expr.try_eval(); fp != nullptr && fp->no_symbols())
   {
     if (!fp->is_rational())
+    {
       std::cout << expr << " ≈ " << ::symxx::dtoa(fp->template to<double>()) << std::endl;
+    }
     else if (fp->template to<Rational<IntType>>().get_denominator() != 1)
-      std::cout << expr << " = " << ::symxx::dtoa(fp->template to<double>()) << std::endl;
+    {
+      std::cout << expr << " ≈ " << ::symxx::dtoa(fp->template to<double>()) << std::endl;
+    }
     else
+    {
       std::cout << *fp << std::endl;
+    }
     return;
   }
   std::cout << expr << std::endl;
@@ -74,21 +61,20 @@ void print_var(const std::string &name, const Real<IntType> &var)
   std::cout << "Variable: " << name << " = ";
   print_result(Frac<IntType>{var});
 }
-
 int main()
 {
-  unittest();
+  test::unittest();
   std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
   std::map<std::string, Real<IntType>> vars{
       {"pi", Rational<IntType>{157, 50}},
       {"e",  Rational<IntType>{271, 100}}};
-
+  
   std::string str, cmd, body;
   while (true)
   {
     try
     {
-      std::cout << ">> ";
+      std::cout << "symxx> ";
       std::getline(std::cin, str);
       auto pos = str.find_first_of(" ");
       if (pos != std::string::npos)

@@ -14,6 +14,7 @@
 #ifndef SYMXX_NUM_HPP
 #define SYMXX_NUM_HPP
 #include "error.hpp"
+#include "utils.hpp"
 #include <cmath>
 #include <limits>
 #include <numeric>
@@ -28,7 +29,7 @@ namespace symxx
   decimal_places(T v)
   {
     std::size_t count = 0;
-    v = std::abs(v);
+    v = utils::Abs(v);
     auto c = v - std::floor(v);
     T factor = 10;
     T eps = std::numeric_limits<T>::epsilon() * c;
@@ -60,20 +61,29 @@ namespace symxx
     T denominator;
 
   public:
-    template<typename U>
-    Rational(U n)
-        : numerator(static_cast<T>(n)), denominator(1)
-    {
-    }
-  
-    template<typename U>
-    Rational(U n, U d)
-        : numerator(static_cast<T>(n)), denominator(static_cast<T>(d))
+    template<typename U, typename R, typename = std::enable_if_t<
+        std::is_arithmetic_v<std::decay_t<U>>
+        || std::is_same_v<std::decay_t<U>, T>>,
+        typename = std::enable_if_t<
+            std::is_arithmetic_v<std::decay_t<R>>
+            || std::is_same_v<std::decay_t<R>, T>>>
+    Rational(U n, R d)
+        : numerator(n), denominator(d)
     {
       if (denominator == 0)
       {
         throw Error("denominator must not be 0.");
       }
+      reduce();
+    }
+  
+    template<typename U, typename = std::enable_if_t<
+        std::is_arithmetic_v<std::decay_t<U>>
+        || std::is_same_v<std::decay_t<U>, T>>>
+    Rational(U n)
+        : numerator(n), denominator(1)
+    {
+      if (denominator == 0) throw Error("denominator must not be 0.");
       reduce();
     }
   
@@ -85,15 +95,25 @@ namespace symxx
     Rational(long double x)
     {
       auto ndigits = decimal_places(x);
-      if (ndigits > std::numeric_limits<T>::digits10)
-        x = round_decplaces(x, std::numeric_limits<T>::digits10);
       long double fracpart, intpart;
       fracpart = std::modf(x, &intpart);
-      denominator = std::pow(10,
-                             ndigits > std::numeric_limits<T>::digits10
-                             ? std::numeric_limits<T>::digits10
-                             : ndigits);
-      numerator = x * denominator;
+      if constexpr (std::is_fundamental_v<T>)
+      {
+        if (ndigits > std::numeric_limits<T>::digits10)
+        {
+          x = round_decplaces(x, std::numeric_limits<T>::digits10);
+        }
+        denominator = std::pow(10,
+                               ndigits > std::numeric_limits<T>::digits10
+                               ? std::numeric_limits<T>::digits10
+                               : ndigits);
+        numerator = x * denominator;
+      }
+      else
+      {
+        denominator = static_cast<T>(std::pow(10, ndigits));
+        numerator = denominator * x;
+      }
       reduce();
     }
   
@@ -110,13 +130,13 @@ namespace symxx
           auto k = n.find('/');
           if (k == std::string::npos)
           {
-            numerator = std::stoll(n);
+            numerator = utils::To_int<T>(n);
             denominator = 1;
           }
           else
           {
-            numerator = std::stoll(n.substr(0, k));
-            denominator = std::stoll(n.substr(k + 1));
+            numerator = utils::To_int<T>(n.substr(0, k));
+            denominator = utils::To_int<T>(n.substr(k + 1));
           }
         }
       }
@@ -193,22 +213,21 @@ namespace symxx
       return *this;
     }
   
-    Rational operator^(const Rational<T> &p) const
+    Rational pow(const Rational<T> &p) const
     {
-      auto a = *this;
-      a ^= p;
-      return a;
+      if (p == 0) return 1;
+      if (p == 1) return *this;
+      Rational<T> res;
+      res.numerator = static_cast<T>(utils::Pow(numerator, p.template to<double>()));
+      res.denominator = static_cast<T>(utils::Pow(denominator, p.template to<double>()));
+      if (denominator == 0)
+      {
+        throw Error("denominator must not be 0.");
+      }
+      res.reduce();
+      return res;
     }
   
-    Rational &operator^=(const Rational<T> &p)
-    {
-      numerator = static_cast<T>(std::pow(numerator, p.template to<double>()));
-      denominator = static_cast<T>(std::pow(denominator, p.template to<double>()));
-      if (denominator == 0)
-        throw Error("denominator must not be 0.");
-      reduce();
-      return *this;
-    }
   
     bool operator<(const Rational &r) const
     {
@@ -229,22 +248,16 @@ namespace symxx
   
     bool is_int() const { return numerator % denominator == 0; }
   
-    bool is_square() const
-    {
-      return (std::sqrt(std::abs(numerator)) - static_cast<T>(std::sqrt(std::abs(numerator))) == 0) &&
-             (std::sqrt(std::abs(denominator)) - static_cast<T>(std::sqrt(std::abs(denominator))) == 0);
-    }
-  
     Rational negate() const
     {
-      return {-numerator, denominator};
+      return Rational{-numerator, denominator};
     }
   
     Rational reciprocate() const { return {denominator, numerator}; }
   
     void reduce()
     {
-      T g = std::gcd(std::abs(numerator), std::abs(denominator));
+      T g = ::symxx::utils::Gcd(::symxx::utils::Abs(numerator), ::symxx::utils::Abs(denominator));
       numerator /= g;
       denominator /= g;
       if (denominator == -1)
@@ -285,8 +298,7 @@ namespace symxx
     return os;
   }
   
-  template<typename T,
-      typename = typename std::enable_if_t<std::is_integral<T>::value>>
+  template<typename T>
   bool is_prime(T a)
   {
     T i = 2;
@@ -309,10 +321,10 @@ namespace symxx
   }
   
   template<typename T>
-  void radical_reduce(T &num, std::make_unsigned_t<T> &index, Rational<T> &coe, bool is_numerator)
+  void radical_reduce(T &num, utils::Make_unsigned_t<T> &index, Rational<T> &coe, bool is_numerator)
   {
     auto numbak = num;
-    for (int i = 2; i < num; i++)
+    for (T i = 2; i < num; i++)
     {
       if (num <= 1)
       {
@@ -322,7 +334,7 @@ namespace symxx
       {
         continue;
       }
-      std::make_unsigned_t<T> k = 0;
+      utils::Make_unsigned_t<T> k = 0;
       while (numbak % i == 0)
       {
         numbak /= i;
@@ -333,20 +345,34 @@ namespace symxx
       if (k >= index)
       {
         if (is_numerator)
-          coe *= static_cast<T>(std::pow(i, k / index));
+        {
+          coe *= static_cast<T>(utils::Pow(i, k / index));
+        }
         else
-          coe /= static_cast<T>(std::pow(i, k / index));
-        num /= std::pow(i, k - k % index);
+        {
+          coe /= static_cast<T>(utils::Pow(i, k / index));
+        }
+        num /= utils::Pow(i, k - k % index);
       }
       else if (numbak == 1)
       {
-        auto g = std::gcd(index, k);
+        auto g = utils::Gcd(index, k);
         index /= k;
-        num = std::pow(i, k / g);
+        num = utils::Pow(i, k / g);
       }
     }
   }
   
+  namespace num_internal
+  {
+    struct NormalTag {};
+    struct RationalTag {};
+    template<typename T, typename U>
+    struct TagDispatch
+    {
+      using tag = std::conditional_t<std::is_same_v<U, Rational<T>>, RationalTag, NormalTag>;
+    };
+  }
   template<typename T>
   class Real
   {
@@ -354,23 +380,19 @@ namespace symxx
     friend std::ostream &operator<<(std::ostream &os, const Real<U> &i);
   
   private:
-    using IndexT = std::make_unsigned_t<T>;
+    using IndexT = utils::Make_unsigned_t<T>;
     IndexT index;
     Rational<T> radicand;
     Rational<T> coe;
   
   public:
-    Real(const Rational<T> &c, const Rational<T> &r, IndexT i)
-        : index(i), radicand(r), coe(c) { reduce(); }
+    Real(Rational<T> c, Rational<T> r = 1, IndexT i = 1)
+        : index(i), radicand(std::move(r)), coe(std::move(c)) { reduce(); }
     
-    Real(const Rational<T> &c)
-        : index(1), radicand(1), coe(c) { reduce(); }
-    
-    template<typename U, typename = typename std::enable_if_t<std::is_integral<U>::value>>
+    template<typename U, typename = std::enable_if_t<
+        std::is_arithmetic_v<std::decay_t<U>>
+        || std::is_same_v<std::decay_t<U>, T>>>
     Real(U c)
-        : index(1), radicand(1), coe(c) { reduce(); }
-    
-    Real(long double c)
         : index(1), radicand(1), coe(c) { reduce(); }
     
     Real() : index(1), radicand(1), coe(0) {}
@@ -378,7 +400,9 @@ namespace symxx
     bool is_equivalent_with(const Real &t) const
     {
       if (radicand == t.radicand && radicand == 1)
+      {
         return true;
+      }
       if (index == t.index && index == 1)
         return true;
       return (radicand == t.radicand && index == t.index);
@@ -416,8 +440,8 @@ namespace symxx
     
     Real &operator*=(const Real &r)
     {
-      radicand ^= r.index;
-      radicand *= r.radicand ^ index;
+      radicand = radicand.pow(r.index);
+      radicand *= r.radicand.pow(index);
       index *= r.index;
       coe *= r.coe;
       reduce();
@@ -433,8 +457,8 @@ namespace symxx
     
     Real &operator/=(const Real &r)
     {
-      radicand ^= r.index;
-      radicand *= r.radicand.reciprocate() ^ index;
+      radicand = radicand.pow(r.index);
+      radicand *= r.radicand.reciprocate().pow(index);
       coe /= r.coe;
       index *= r.index;
       reduce();
@@ -448,38 +472,31 @@ namespace symxx
       return a;
     }
     
-    Real operator^(const Rational<T> &p) const
+    Real pow(const Rational<T> &p) const
     {
-      auto a = *this;
-      a ^= p;
-      return a;
-    }
-    
-    Real &operator^=(Rational<T> p)
-    {
-      if (p == 0)
-        *this = 1;
+      if (p == 0) return 1;
+      if (p == 1) return *this;
       if (p < 0)
       {
-        p = p.negate();
-        *this = reciprocate();
+        return pow(p.negate());
       }
-  
+      
+      auto res = *this;
       if (p.is_int())
       {
-        coe ^= p;
-        radicand ^= p;
+        res.coe = res.coe.pow(p);
+        res.radicand = res.radicand.pow(p);
       }
       else
       {
-        radicand ^= p.get_numerator();
-        index *= p.get_denominator();
-        auto cb = coe ^ p.get_numerator();
-        coe = 1;
-        *this *= Real<T>{Rational<T>{1}, cb, static_cast<IndexT>(p.get_denominator())};
+        res.radicand = res.radicand.pow(p.get_numerator());
+        res.index *= p.get_denominator();
+        auto cb = res.coe.pow(p.get_numerator());
+        res.coe = 1;
+        res *= Real<T>{Rational<T>{1}, cb, static_cast<IndexT>(p.get_denominator())};
       }
-      reduce();
-      return *this;
+      res.reduce();
+      return res;
     }
     
     Rational<T> &get_coe() const
@@ -494,7 +511,7 @@ namespace symxx
     
     bool operator<(const Real &r) const
     {
-      return coe * (radicand ^ r.index) < r.coe * (r.radicand * index);
+      return coe * (radicand.pow(r.index)) < r.coe * (r.radicand * index);
     }
     
     bool operator==(const Real &r) const
@@ -508,7 +525,7 @@ namespace symxx
     {
       return !(*this < r);
     }
-  
+    
     void reduce()
     {
       T num = radicand.get_numerator();
@@ -521,28 +538,12 @@ namespace symxx
         index = 1;
       }
     }
-  
+    
     Real negate() const { return {coe.negate(), radicand, index}; }
-  
-    bool is_rational()
+    
+    bool is_rational() const
     {
       return coe == 0 || radicand == 1 || radicand == 0 || index == 1 || index == 0;
-    }
-  
-    template<typename U>
-    U to() const
-    {
-      return coe.template to<U>() *
-             static_cast<U>(std::pow(radicand.template to<double>(), 1.0 / static_cast<double>(index)));
-    }
-  
-    Rational<T> to() const
-    {
-      if (!is_rational())
-      {
-        throw Error("Must be a rational.");
-      }
-      return coe * radicand;
     }
     
     Real reciprocate() const
@@ -551,6 +552,30 @@ namespace symxx
       p.coe = p.coe.reciprocate();
       p.radicand = p.radicand.reciprocate();
       return p;
+    }
+    
+    template<typename U>
+    U to() const
+    {
+      return internal_to<U>(typename num_internal::TagDispatch<T, U>::tag{});
+    }
+  
+  private:
+    template<typename U>
+    U internal_to(num_internal::NormalTag) const
+    {
+      return coe.template to<U>() *
+             static_cast<U>(utils::Pow(radicand.template to<double>(), 1.0 / static_cast<double>(index)));
+    }
+    
+    template<typename U>
+    U internal_to(num_internal::RationalTag) const
+    {
+      if (!is_rational())
+      {
+        throw Error("Must be a rational.");
+      }
+      return coe * radicand;
     }
   };
   
@@ -593,7 +618,7 @@ namespace symxx
   }
   
   template<typename T>
-  Real<T> nth_root(std::make_unsigned_t<T> n, Rational<T> q)
+  Real<T> nth_root(utils::Make_unsigned_t<T> n, Rational<T> q)
   {
     return Real<T>{1, q, n};
   }

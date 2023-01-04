@@ -41,7 +41,7 @@ namespace symxx
   constexpr digit SYMXX_HUGE_SHIFT = 30;
   constexpr digit SYMXX_HUGE_BASE = static_cast<digit>(1 << SYMXX_HUGE_SHIFT);
   constexpr digit SYMXX_HUGE_LOW_MASK = static_cast<digit>(SYMXX_HUGE_BASE - 1);
-  namespace internal
+  namespace huge_internal
   {
     namespace helper
     {
@@ -304,9 +304,12 @@ namespace symxx
         remd = dividend % b;
         res[i] = quotient;
       }
-      rem = {remd};
+      if (remd != 0)
+      {
+        rem = {remd};
+      }
     }
-    
+  
     void digits_divrem(const std::span<const digit> &a, const std::span<const digit> &b, std::vector<digit> &res,
                        std::vector<digit> &rem)
     {
@@ -392,20 +395,84 @@ namespace symxx
       // reuse w to store the rem
       helper::digits_right_shift(w, v, sz_b, d);
       std::swap(rem, w);
+      while (rem.back() == 0) rem.pop_back();
+      while (res.back() == 0) res.pop_back();
     }
-    
+  
+    // just for tests, unfinished
     void digits_rem(const std::span<const digit> &cd, const std::span<const digit> &dd, std::vector<digit> &rem)
     {
       //unfinished
       std::vector<digit> tmp;
       digits_divrem(cd, dd, tmp, rem);
     }
-    
+  
+    void digits_gcd(const std::span<const digit> &a, const std::span<const digit> &b, std::vector<digit> &ret)
+    {
+      //unfinished
+      if (b.empty())
+      {
+        ret.insert(ret.end(), a.begin(), a.end());
+        return;
+      }
+      std::vector<digit> tmp;
+      digits_rem(a, b, tmp);
+      digits_gcd(b, tmp, ret);
+    }
+  
+    void digits_pow(const std::span<const digit> &a, const std::span<const digit> &b, std::vector<digit> &ret)
+    {
+      ret.clear();
+      if (b.empty())//b==0
+      {
+        ret.emplace_back(1);
+        return;
+      }
+      else if (a.empty())//a==0
+      {
+        return;
+      }
+      else if (b.size() == 1 && b[0] == 1)//b==1
+      {
+        ret.insert(ret.end(), b.begin(), b.end());
+        return;
+      }
+      else if (a.size() == 1 && a[0] == 1)//a==1
+      {
+        ret.emplace_back(1);
+        return;
+      }
+      //unfinished
+      throw Error("Unfinished");
+    }
+  
     void digits_bitwise(const std::span<const digit> &a, const std::span<const digit> &b,
                         const std::function<digit(digit, digit)> &process)
     {
     
     }
+  
+    //
+  
+  
+    template<typename U>
+    std::enable_if_t<std::is_integral_v<std::decay_t<U>>>
+    digits_from_int(const U &val, std::vector<digit> &digits)
+    {
+      for (U u = val > 0 ? val : static_cast<U>(0) - val;
+           u != 0; u >>= static_cast<U>(SYMXX_HUGE_SHIFT))
+      {
+        digits.emplace_back(static_cast<digit>(u & SYMXX_HUGE_LOW_MASK));
+      }
+    }
+  
+    struct IntTag {};
+    struct FloatingTag {};
+    template<typename T>
+    struct TagDispatch
+    {
+      using tag = std::conditional_t<std::is_integral_v<std::decay_t<T>>, IntTag, FloatingTag>;
+    };
   }
   class Huge
   {
@@ -420,23 +487,60 @@ namespace symxx
   public:
     Huge() : is_positive(true) {}
   
-    template<typename U, typename = std::enable_if_t<std::is_integral_v<U>>>
-    Huge(const U &val): is_positive(val >= 0)
+    template<typename U, typename = std::enable_if_t<std::is_arithmetic_v<std::decay_t<U>>>>
+    Huge(U val): is_positive(val >= 0)
     {
-      for (U u = val > 0 ? val : static_cast<U>(0) - val;
-           u != 0; u >>= static_cast<U>(SYMXX_HUGE_SHIFT))
+      using Ut = std::decay_t<U>;
+      if constexpr(std::is_unsigned_v<Ut>)
       {
-        digits.emplace_back(static_cast<digit>(u & SYMXX_HUGE_LOW_MASK));
+        if constexpr(std::is_integral_v<Ut>)
+        {
+          huge_internal::digits_from_int(std::forward<U>(val), digits);
+        }
+        else
+        {
+          huge_internal::digits_from_int(static_cast<unsigned long long>(std::forward<U>(val)), digits);
+        }
+      }
+      else
+      {
+        if constexpr(std::is_integral_v<Ut>)
+        {
+          huge_internal::digits_from_int(std::abs(val), digits);
+        }
+        else
+        {
+          huge_internal::digits_from_int(static_cast<unsigned long long>(std::abs(val)), digits);
+        }
       }
     }
   
-    Huge(std::vector<digit> s, bool p = true) : digits(std::move(s)), is_positive(p) {}
+    explicit operator int() const { return to<int>(); }
+  
+    explicit operator unsigned int() const { return to<unsigned int>(); }
+  
+    explicit operator long() const { return to<long>(); }
+  
+    explicit operator unsigned long() const { return to<unsigned long>(); }
+  
+    explicit operator long long() const { return to<long long>(); }
+  
+    explicit operator unsigned long long() const { return to<unsigned long long>(); }
+  
+    explicit operator double() const { return to<double>(); }
+  
+    explicit operator long double() const { return to<long double>(); }
+  
+    explicit Huge(std::vector<digit> s, bool p = true) : digits(std::move(s)), is_positive(p) {}
+  
+    explicit Huge(std::initializer_list<digit> s, bool p = true) : digits(std::move(s)), is_positive(p) {}
   
     Huge(const std::string &s)
     {
-      if (s.empty()) throw Error("Invaild string.");
-    
       std::size_t pos = 0;
+      std::size_t end = s.size();
+      while (!(isdigit(s[pos]) || s[pos] == '+' || s[pos] == '-') && pos < end) ++pos;
+      if (pos >= end) throw Error("Invaild string.");
       is_positive = true;
       if (s[0] == '+')
       {
@@ -452,25 +556,33 @@ namespace symxx
       const double sz = static_cast<double>(s.size() - pos) * std::log(10) / std::log(32768) + 1;
       digits.reserve(static_cast<size_t>(sz));
     
-      while (pos < s.size())
+      while (pos < end)
       {
+        if (!isdigit(s[pos])) break;
         twodigits c = s[pos++] - '0';
         size_t i = 1;
-        for (; i < convwidth && pos < s.size(); ++pos)
+        for (; i < convwidth && pos < end; ++pos)
         {
-          ++i;
-          c = static_cast<twodigits>(c * 10 + s[pos] - '0');
+          if (!isdigit(s[pos]))
+          {
+            end = pos;
+          }
+          else
+          {
+            c = static_cast<twodigits>(c * 10 + s[pos] - '0');
+            ++i;
+          }
         }
-  
+      
         twodigits convmult = convmultmax;
-  
+      
         if (i != convwidth) // the end of string
         {
           convmult = 10;
           for (; i > 1; --i)
             convmult *= 10;
         }
-  
+      
         // put c to digits
         for (auto &p: digits)
         {
@@ -491,11 +603,11 @@ namespace symxx
       std::vector<digit> tmp;
       if ((h.is_positive && is_positive) || (!h.is_positive && !is_positive))
       {
-        internal::digits_add(digits, h.digits, tmp);
+        huge_internal::digits_add(digits, h.digits, tmp);
       }
       else
       {
-        int cmp = internal::digits_cmp(digits, h.digits);
+        int cmp = huge_internal::digits_cmp(digits, h.digits);
         if (cmp == 0)
         {
           digits.clear();
@@ -504,11 +616,11 @@ namespace symxx
         else if (cmp < 0)
         {
           is_positive = !is_positive;
-          internal::digits_sub(h.digits, digits, tmp);
+          huge_internal::digits_sub(h.digits, digits, tmp);
         }
         else
         {
-          internal::digits_sub(digits, h.digits, tmp);
+          huge_internal::digits_sub(digits, h.digits, tmp);
         }
       }
       std::swap(tmp, digits);
@@ -525,7 +637,7 @@ namespace symxx
     Huge &operator-=(const Huge &h)
     {
       std::vector<digit> tmp;
-      int cmp = internal::digits_cmp(digits, h.digits);
+      int cmp = huge_internal::digits_cmp(digits, h.digits);
       if (cmp == 0)
       {
         digits.clear();
@@ -533,18 +645,18 @@ namespace symxx
       }
       if ((h.is_positive && !is_positive) || (!h.is_positive && is_positive))
       {
-        internal::digits_add(digits, h.digits, tmp);
+        huge_internal::digits_add(digits, h.digits, tmp);
       }
       else
       {
         if (cmp < 0)
         {
           is_positive = !is_positive;
-          internal::digits_sub(h.digits, digits, tmp);
+          huge_internal::digits_sub(h.digits, digits, tmp);
         }
         else
         {
-          internal::digits_sub(digits, h.digits, tmp);
+          huge_internal::digits_sub(digits, h.digits, tmp);
         }
       }
       std::swap(tmp, digits);
@@ -562,7 +674,7 @@ namespace symxx
     {
       std::vector<digit> tmp;
       is_positive = ((h.is_positive && is_positive) || (!h.is_positive && !is_positive));
-      internal::digits_mul(digits, h.digits, tmp);
+      huge_internal::digits_mul(digits, h.digits, tmp);
       std::swap(tmp, digits);
       return *this;
     }
@@ -576,11 +688,11 @@ namespace symxx
     
     Huge &operator/=(const Huge &h)
     {
-      if (h.digits.size() == 0) throw Error("Huge can not be divided by zero.");
+      if (h.digits.empty()) throw Error("Huge can not be divided by zero.");
       is_positive = ((h.is_positive && is_positive) || (!h.is_positive && !is_positive));
       std::vector<digit> res;
       std::vector<digit> rem;
-      internal::digits_divrem(digits, h.digits, res, rem);
+      huge_internal::digits_divrem(digits, h.digits, res, rem);
       std::swap(res, digits);
       return *this;
     }
@@ -592,86 +704,104 @@ namespace symxx
       return i;
     }
   
+    Huge operator-() const
+    {
+      return Huge(digits, !is_positive);
+    }
+  
+    Huge &operator++()
+    {
+      *this += 1;
+      return *this;
+    }
+  
+    Huge operator++(int)
+    {
+      auto tmp = *this;
+      *this += 1;
+      return tmp;
+    }
+  
+    Huge &operator--()
+    {
+      *this -= 1;
+      return *this;
+    }
+  
+    Huge operator--(int)
+    {
+      auto tmp = *this;
+      *this -= 1;
+      return tmp;
+    }
+  
     Huge &operator%=(const Huge &h)
     {
       std::vector<digit> rem;
-      internal::digits_rem(digits, h.digits, rem);
+      huge_internal::digits_rem(digits, h.digits, rem);
       std::swap(rem, digits);
       return *this;
     }
   
-    Huge operator%(const Huge &h)
+    Huge operator%(const Huge &h) const
     {
       auto i = *this;
       i %= h;
       return i;
     }
   
-    bool operator<(const Huge &h)
+    //TODO not finished
+    [[nodiscard]] Huge gcd(const Huge &h) const
     {
-      return internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) < 0;
+      std::vector<digit> ret;
+      huge_internal::digits_gcd(digits, h.digits, ret);
+      return Huge(ret);
     }
   
-    bool operator>(const Huge &h)
+    [[nodiscard]] Huge pow(const Huge &h) const
     {
-      return internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) > 0;
+      std::vector<digit> ret;
+      huge_internal::digits_pow(digits, h.digits, ret);
+      return Huge(ret);
     }
   
-    bool operator==(const Huge &h)
+    //
+    [[nodiscard]] Huge abs() const
     {
-      return internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) == 0;
+      return Huge(digits, true);
     }
   
-    bool operator!=(const Huge &h)
+    bool operator<(const Huge &h) const
     {
-      return internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) != 0;
+      return huge_internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) < 0;
     }
   
-    bool operator<=(const Huge &h)
+    bool operator>(const Huge &h) const
     {
-      return internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) <= 0;
+      return huge_internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) > 0;
     }
   
-    bool operator>=(const Huge &h)
+    bool operator==(const Huge &h) const
     {
-      return internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) >= 0;
+      return huge_internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) == 0;
     }
   
-    template<typename U>
-    U to() const
+    bool operator!=(const Huge &h) const
     {
-      if (digits.empty()) return static_cast<U>(0);
-      if (!is_positive && std::is_unsigned_v<U>)
-      {
-        throw Error("The Huge is negative but U is unsigned.[" + to_string() + "].");
-      }
-      if (digits.size() == 1
-          && digits[0] <= std::numeric_limits<U>::max()
-          && static_cast<sdigit>(digits[0]) >= std::numeric_limits<U>::lowest())
-      {
-        return static_cast<U>(digits[0]) * static_cast<U>(static_cast<int>(is_positive ? 1 : -1));
-      }
-      else
-      {
-        U result = 0;
-        for (auto rit = digits.crbegin(); rit < digits.crend(); ++rit)
-        {
-          result |= static_cast<twodigits>(*rit);
-          if (rit < digits.crend() - 1)
-          {
-            if (internal::helper::bit_length(result) + SYMXX_HUGE_SHIFT > sizeof(U) * 8)
-            {
-              throw Error("The Huge is too big.[" + to_string() + "].");
-            }
-            result <<= SYMXX_HUGE_SHIFT;
-          }
-        }
-        return result * static_cast<U>(static_cast<int>((is_positive ? 1 : -1)));
-      }
-      return 0;
+      return huge_internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) != 0;
     }
   
-    std::string to_string() const
+    bool operator<=(const Huge &h) const
+    {
+      return huge_internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) <= 0;
+    }
+  
+    bool operator>=(const Huge &h) const
+    {
+      return huge_internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) >= 0;
+    }
+  
+    [[nodiscard]] std::string to_string() const
     {
       constexpr digit decimal_shift = 9;
       constexpr digit decimal_base = static_cast<digit>(1000000000);
@@ -729,6 +859,59 @@ namespace symxx
       }
       return ret;
     }
+  
+    template<typename U>
+    [[nodiscard]] std::enable_if_t<std::is_arithmetic_v<std::decay_t<U>>, U>
+    to() const
+    {
+      return internal_to<U>(typename huge_internal::TagDispatch<std::decay_t<U>>::tag{});
+    }
+
+  private:
+    template<typename U>
+    [[nodiscard]] U internal_to(huge_internal::IntTag) const
+    {
+      if (digits.empty()) return static_cast<U>(0);
+      if (!is_positive && std::is_unsigned_v<std::decay_t<U>>)
+      {
+        throw Error("The Huge is negative but U is unsigned.[" + to_string() + "].");
+      }
+      if (digits.size() == 1
+          && digits[0] <= std::numeric_limits<U>::max()
+          && static_cast<sdigit>(digits[0]) >= std::numeric_limits<U>::lowest())
+      {
+        return static_cast<U>(digits[0]) * static_cast<U>(static_cast<int>(is_positive ? 1 : -1));
+      }
+      else
+      {
+        if ((digits.size() - 1) * SYMXX_HUGE_SHIFT > sizeof(U) * 8)
+        {
+          throw Error("The Huge is too big.[" + to_string() + "].");
+        }
+        U result = 0;
+        for (auto rit = digits.crbegin(); rit < digits.crend(); ++rit)
+        {
+          result |= static_cast<twodigits>(*rit);
+          if (rit < digits.crend() - 1)
+          {
+            result <<= SYMXX_HUGE_SHIFT;
+          }
+        }
+        return result * static_cast<U>(static_cast<int>((is_positive ? 1 : -1)));
+      }
+      return 0;
+    }
+  
+    template<typename U>
+    [[nodiscard]] U internal_to(huge_internal::FloatingTag) const
+    {
+      auto tmp = abs().to<unsigned long long>();
+      if (tmp > std::numeric_limits<U>::max())
+      {
+        throw Error("The Huge is too big.[" + to_string() + "].");
+      }
+      return static_cast<U>(tmp) * (is_positive ? 1 : -1);
+    }
   };
   
   std::ostream &operator<<(std::ostream &os, const Huge &i)
@@ -747,7 +930,7 @@ namespace symxx
     is_positive = ((h1.is_positive && h2.is_positive) || (!h1.is_positive && !h2.is_positive));
     std::vector<digit> res;
     std::vector<digit> rem;
-    internal::digits_divrem(h1.digits, h2.digits, res, rem);
+    huge_internal::digits_divrem(h1.digits, h2.digits, res, rem);
     return {Huge{res, is_positive}, Huge{rem}};
   }
 }

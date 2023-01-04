@@ -13,24 +13,81 @@
 //   limitations under the License.
 #ifndef SYMXX_UTILS_HPP
 #define SYMXX_UTILS_HPP
-#include "num.hpp"
-#include "frac.hpp"
+
+#include "huge.hpp"
 #include "error.hpp"
 #include <utility>
-#include <map>
+#include <cmath>
+#include <numeric>
 #include <string>
-namespace symxx
+#include <type_traits>
+
+namespace symxx::utils
 {
   template<typename T>
-  std::pair<Frac < T>, Frac <T>>
-  
-  solve_quadratic(const Rational <T> &a, const Rational <T> &b, const Rational <T> &c)
+  inline T To_int(const std::string &num)
   {
-    Rational<T> delta = (b ^ 2) - (a * c * 4);
-    Frac<T> gdelta{nth_root(2, delta)};
-    auto x1 = (Frac<T>{b.negate()} + gdelta) / Frac<T>{a * 2};
-    auto x2 = (Frac<T>{b.negate()} - gdelta) / Frac<T>{a * 2};
-    return {x1, x2};
+    return std::stoll(num);
   }
+  
+  template<>
+  inline Huge To_int(const std::string &num)
+  {
+    return Huge{num};
+  }
+  
+  template<typename T>
+  inline T Abs(const T &num)
+  {
+    return std::abs(num);
+  }
+  
+  template<>
+  inline Huge Abs(const Huge &num)
+  {
+    return num.abs();
+  }
+  
+  template<typename T, typename U>
+  inline auto Pow(const T &num, U &&power)
+  {
+    return std::pow(num, std::forward<U>(power));
+  }
+  
+  template<typename U>
+  inline auto Pow(const symxx::Huge &num, U &&power)
+  {
+    return num.pow(std::forward<U>(power));
+  }
+  
+  template<typename T, typename U>
+  inline auto Gcd(const T &a, U &&b)
+  {
+    return std::gcd(a, std::forward<U>(b));
+  }
+  
+  template<typename U>
+  inline auto Gcd(const symxx::Huge &a, U &&b)
+  {
+    return a.gcd(std::forward<U>(b));
+  }
+  
+  
+  template<typename T>
+  class Make_unsigned
+  {
+  public:
+    using type = std::make_unsigned_t<T>;
+  };
+  
+  template<>
+  class Make_unsigned<::symxx::Huge>
+  {
+  public:
+    using type = ::symxx::Huge;
+  };
+  
+  template<typename T>
+  using Make_unsigned_t = typename Make_unsigned<T>::type;
 }
 #endif
