@@ -41,6 +41,8 @@ namespace symxx
   constexpr digit SYMXX_HUGE_SHIFT = 30;
   constexpr digit SYMXX_HUGE_BASE = static_cast<digit>(1 << SYMXX_HUGE_SHIFT);
   constexpr digit SYMXX_HUGE_LOW_MASK = static_cast<digit>(SYMXX_HUGE_BASE - 1);
+  constexpr digit SYMXX_HUGE_DECIMAL_SHIFT = 9;
+  constexpr digit SYMXX_HUGE_DECIMAL_BASE = static_cast<digit>(1000000000);
   namespace huge_internal
   {
     namespace helper
@@ -803,8 +805,6 @@ namespace symxx
   
     [[nodiscard]] std::string to_string() const
     {
-      constexpr digit decimal_shift = 9;
-      constexpr digit decimal_base = static_cast<digit>(1000000000);
       std::vector<digit> out;
       for (auto rit = digits.crbegin(); rit < digits.crend(); ++rit)
       {
@@ -812,13 +812,13 @@ namespace symxx
         for (auto &j: out)
         {
           twodigits z = static_cast<twodigits>(j) << SYMXX_HUGE_SHIFT | hi;
-          hi = static_cast<digit>(z / decimal_base);
-          j = static_cast<digit>(z - static_cast<twodigits>(hi) * decimal_base);
+          hi = static_cast<digit>(z / SYMXX_HUGE_DECIMAL_BASE);
+          j = static_cast<digit>(z - static_cast<twodigits>(hi) * SYMXX_HUGE_DECIMAL_BASE);
         }
         while (hi != 0)
         {
-          out.emplace_back(hi % decimal_base);
-          hi /= decimal_base;
+          out.emplace_back(hi % SYMXX_HUGE_DECIMAL_BASE);
+          hi /= SYMXX_HUGE_DECIMAL_BASE;
         }
       }
     
@@ -826,7 +826,7 @@ namespace symxx
         out.emplace_back(0);
     
       // fill the string from right to left
-      size_t len = (is_positive ? 0 : 1) + 1 + (out.size() - 1) * decimal_shift;
+      size_t len = (is_positive ? 0 : 1) + 1 + (out.size() - 1) * SYMXX_HUGE_DECIMAL_SHIFT;
       digit tenpow = 10;
       digit rem = out.back();
       while (rem >= tenpow)
@@ -840,7 +840,7 @@ namespace symxx
       for (auto it = out.cbegin(); it < out.cend() - 1; ++it)
       {
         rem = *it;
-        for (size_t j = 0; j < decimal_shift; ++j)
+        for (size_t j = 0; j < SYMXX_HUGE_DECIMAL_SHIFT; ++j)
         {
           *(ret_it++) = '0' + rem % 10;
           rem /= 10;
