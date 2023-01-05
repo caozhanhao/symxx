@@ -21,20 +21,14 @@
 
 namespace symxx::test
 {
-  Test get_all_tests()
-  {
-    Test test;
-    add_huge_test(test);
-    add_dtoa_test(test);
-    add_num_test(test);
-    return test;
-  }
-  
   int unittest()
   {
     try
     {
-      test::Test test = test::get_all_tests();
+      auto &test = test::get_test();
+      huge_test();
+      dtoa_test();
+      num_test();
       test.run_tests();
       test.print_results();
     }

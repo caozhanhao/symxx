@@ -246,7 +246,7 @@ namespace symxx
       return numerator * r.denominator > r.numerator * denominator;
     }
   
-    bool is_int() const { return numerator % denominator == 0; }
+    bool is_int() const { return denominator == 1; }
   
     Rational negate() const
     {
@@ -281,67 +281,39 @@ namespace symxx
     {
       return numerator / denominator;
     }
+  
+    std::string to_string() const
+    {
+      if (denominator != 1)
+      {
+        return "(" + utils::To_String(numerator) + "/" + utils::To_String(denominator) + ")";
+      }
+      else
+      {
+        return utils::To_String(numerator);
+      }
+      return "";
+    }
   };
   
   template<typename U>
   std::ostream &
   operator<<(std::ostream &os, const Rational<U> &i)
   {
-    if (i.denominator != 1)
-    {
-      os << "(" << i.numerator << "/" << i.denominator << ")";
-    }
-    else
-    {
-      os << i.numerator;
-    }
+    os << i.to_string();
     return os;
-  }
-  
-  template<typename T>
-  bool is_prime(T a)
-  {
-    T i = 2;
-    while (i < a)
-    {
-      if (a % i == 0)
-      {
-        break;
-      }
-      i++;
-    }
-    if (i == a)
-    {
-      return true;
-    }
-    else
-    {
-      return false;
-    }
   }
   
   template<typename T>
   void radical_reduce(T &num, utils::Make_unsigned_t<T> &index, Rational<T> &coe, bool is_numerator)
   {
-    auto numbak = num;
-    for (T i = 2; i < num; i++)
+    //unfinished
+    for (T i = 2; i < num && num > 1; i++)
     {
-      if (num <= 1)
-      {
-        break;
-      }
-      if (!is_prime(i))
-      {
-        continue;
-      }
       utils::Make_unsigned_t<T> k = 0;
-      while (numbak % i == 0)
-      {
-        numbak /= i;
-        ++k;
-      }
-      if (k == 0)
-        continue;
+      auto n = num;
+      for (; n % i == 0; n /= i) ++k;
+      if (k == 0 || k == 1) continue;
       if (k >= index)
       {
         if (is_numerator)
@@ -354,10 +326,10 @@ namespace symxx
         }
         num /= utils::Pow(i, k - k % index);
       }
-      else if (numbak == 1)
+      else if (n == 1)
       {
         auto g = utils::Gcd(index, k);
-        index /= k;
+        index /= g;
         num = utils::Pow(i, k / g);
       }
     }
@@ -440,8 +412,7 @@ namespace symxx
     
     Real &operator*=(const Real &r)
     {
-      radicand = radicand.pow(r.index);
-      radicand *= r.radicand.pow(index);
+      radicand = radicand.pow(r.index) * r.radicand.pow(index);
       index *= r.index;
       coe *= r.coe;
       reduce();
@@ -457,11 +428,7 @@ namespace symxx
     
     Real &operator/=(const Real &r)
     {
-      radicand = radicand.pow(r.index);
-      radicand *= r.radicand.reciprocate().pow(index);
-      coe /= r.coe;
-      index *= r.index;
-      reduce();
+      *this *= r.reciprocate();
       return *this;
     }
     
@@ -476,10 +443,7 @@ namespace symxx
     {
       if (p == 0) return 1;
       if (p == 1) return *this;
-      if (p < 0)
-      {
-        return pow(p.negate());
-      }
+      if (p < 0) return pow(p.negate());
       
       auto res = *this;
       if (p.is_int())
@@ -511,7 +475,7 @@ namespace symxx
     
     bool operator<(const Real &r) const
     {
-      return coe * (radicand.pow(r.index)) < r.coe * (r.radicand * index);
+      return coe.pow(r.index * index) * radicand.pow(r.index) < r.coe.pow(r.index * index) * (r.radicand.pow(index));
     }
     
     bool operator==(const Real &r) const
@@ -523,29 +487,32 @@ namespace symxx
     
     bool operator>(const Real &r) const
     {
-      return !(*this < r);
+      return !(*this < r || *this == r);
     }
     
     void reduce()
     {
+      if (!radicand.is_int())
+      {
+        coe /= radicand.get_denominator();
+        radicand *= utils::Pow(radicand.get_denominator(), index);
+      }
       T num = radicand.get_numerator();
       radical_reduce(num, index, coe, true);
-      T den = radicand.get_denominator();
-      radical_reduce(den, index, coe, false);
-      radicand = {num, den};
+      radicand = {num, 1};
       if (radicand == 1)
       {
         index = 1;
       }
     }
-    
+  
     Real negate() const { return {coe.negate(), radicand, index}; }
     
     bool is_rational() const
     {
       return coe == 0 || radicand == 1 || radicand == 0 || index == 1 || index == 0;
     }
-    
+  
     Real reciprocate() const
     {
       auto p = *this;
@@ -553,13 +520,43 @@ namespace symxx
       p.radicand = p.radicand.reciprocate();
       return p;
     }
+  
+    std::string to_string() const
+    {
+      if (coe == 0) return "0";
+      if (is_rational())
+      {
+        return coe.to_string();
+      }
     
+      std::string ret;
+      if (coe != 1)
+      {
+        ret += coe.to_string() + "(";
+      }
+    
+      if (index != 2)
+      {
+        ret += "_" + utils::To_String(index) + "_/" + radicand.to_string();
+      }
+      else
+      {
+        ret += "_/" + radicand.to_string();
+      }
+    
+      if (coe != 1)
+      {
+        ret += ")";
+      }
+      return ret;
+    }
+  
     template<typename U>
     U to() const
     {
       return internal_to<U>(typename num_internal::TagDispatch<T, U>::tag{});
     }
-  
+
   private:
     template<typename U>
     U internal_to(num_internal::NormalTag) const
@@ -583,44 +580,14 @@ namespace symxx
   std::ostream &
   operator<<(std::ostream &os, const Real<U> &i)
   {
-    if (i.coe == 0)
-    {
-      os << 0;
-      return os;
-    }
-    if (i.index == 1)
-    {
-      os << i.radicand * i.coe;
-      return os;
-    }
-    if (i.radicand == 1)
-    {
-      os << i.coe;
-      return os;
-    }
-    if (i.coe != 1)
-      os << i.coe << "(";
-  
-    if (i.index != 2)
-    {
-      os << "_" << i.index << "√" << i.radicand;
-    }
-    else
-    {
-      os << "√" << i.radicand;
-    }
-  
-    if (i.coe != 1)
-    {
-      os << ")";
-    }
+    os << i.to_string();
     return os;
   }
   
-  template<typename T>
-  Real<T> nth_root(utils::Make_unsigned_t<T> n, Rational<T> q)
+  template<typename ReturnType, typename RadicandType>
+  Real<ReturnType> nth_root(utils::Make_unsigned_t<RadicandType> n, RadicandType q)
   {
-    return Real<T>{1, q, n};
+    return Real<ReturnType>{1, q, n};
   }
 }
 #endif

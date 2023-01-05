@@ -237,15 +237,58 @@ namespace symxx
           ++it;
       }
     }
-    
+  
     bool no_symbols() const
     {
       return get_symbols().empty();
     }
-    
+  
     bool is_rational() const
     {
       return no_symbols() && get_coe().is_rational();
+    }
+  
+    std::string to_string() const
+    {
+      auto coe = get_coe();
+      if (coe == 0)
+      {
+        return "0";
+      }
+      auto symbols = get_symbols();
+      std::string ret;
+      if (coe != 1 || symbols.empty())
+      {
+        if (coe == -1 && !symbols.empty())
+        {
+          ret += "-";
+        }
+        else
+        {
+          ret += coe.to_string();
+        }
+      }
+      int exp = 1;
+      for (auto it = symbols.begin(); it != symbols.end(); ++it)
+      {
+        auto exp = it->second;
+        if (exp != 1)
+        {
+          ret += "(" + it->first + "**" + exp.to_string() + ")";
+        }
+        else
+        {
+          if (it->first.size() != 1)
+          {
+            ret += "{" + it->first + "}";
+          }
+          else
+          {
+            ret += it->first;
+          }
+        }
+      }
+      return ret;
     }
   };
   
@@ -253,36 +296,7 @@ namespace symxx
   std::ostream &
   operator<<(std::ostream &os, const Term<U> &i)
   {
-    auto coe = i.get_coe();
-    auto symbols = i.get_symbols();
-    if (coe == 0)
-    {
-      os << 0;
-      return os;
-    }
-    if (coe != 1 || symbols.empty())
-    {
-      if (coe == -1 && !symbols.empty())
-        os << "-";
-      else
-        os << coe;
-    }
-    int exp = 1;
-    for (auto it = symbols.begin(); it != symbols.end(); ++it)
-    {
-      auto exp = it->second;
-      if (exp != 1)
-      {
-        os << "(" << it->first << "**" << exp << ")";
-      }
-      else
-      {
-        if (it->first.size() != 1)
-          os << "{" << it->first << "}";
-        else
-          os << it->first;
-      }
-    }
+    os << i.to_string();
     return os;
   }
   
@@ -581,52 +595,52 @@ namespace symxx
     auto &get_poly() const { return poly; }
   
     auto &get_poly() { return poly; }
+  
+    std::string to_string() const
+    {
+      if (poly.empty())return "";
+      auto cnt = std::count_if(poly.cbegin(), poly.cend(), [](auto &&f) { return f.get_coe() != 0; });
+      std::string ret;
+      if (cnt > 1) ret += "(";
+      bool first = true;
+      for (auto it = poly.begin(); it < poly.end(); ++it)
+      {
+        if (it->get_coe() == 0 && cnt > 0)
+        {
+          continue;
+        }
+        if (first)
+        {
+          if (!it->is_positive()) ret += "-";
+          ret += it->to_string();
+          first = false;
+          continue;
+        }
+        else if (!it->is_positive())
+        {
+          ret += "-";
+          ret += it->negate().to_string();
+          continue;
+        }
+        else
+        {
+          ret += "+" + it->to_string();
+          continue;
+        }
+      }
+      if (cnt > 1)
+      {
+        ret += ")";
+      }
+      return ret;
+    }
   };
   
   template<typename U>
   std::ostream &
   operator<<(std::ostream &os, const Poly<U> &i)
   {
-    if (i.poly.empty())
-    {
-      return os;
-    }
-    
-    auto cnt = std::count_if(i.poly.cbegin(), i.poly.cend(), [](auto &&f) { return f.get_coe() != 0; });
-    if (cnt > 1)
-    {
-      os << "(";
-    }
-    bool first = true;
-    for (auto it = i.poly.begin(); it < i.poly.end(); ++it)
-    {
-      if (it->get_coe() == 0 && cnt > 0)
-      {
-        continue;
-      }
-      if (first)
-      {
-        os << *it;
-        first = false;
-        continue;
-      }
-      if (!it->is_positive())
-      {
-        os << "-";
-        os << it->negate();
-        continue;
-      }
-      else
-      {
-        os << "+";
-        os << *it;
-        continue;
-      }
-    }
-    if (cnt > 1)
-    {
-      os << ")";
-    }
+    os << i.to_string();
     return os;
   }
   
@@ -851,7 +865,7 @@ namespace symxx
       numerator /= g;
       denominator /= g;
     }
-  
+    
     Frac negate() const
     {
       auto a = numerator.negate();
@@ -859,26 +873,25 @@ namespace symxx
     }
     
     Frac reciprocate() const { return {denominator, numerator, env}; }
+    
+    std::string to_string() const
+    {
+      if (numerator.get_poly().empty()) return "0";
+      std::string ret;
+      if (denominator.get_poly().size() == 1 && denominator.get_poly()[0].get_coe() == 1
+          && denominator.get_poly()[0].get_symbols().empty())
+      {
+        return numerator.to_string();
+      }
+      return "(" + numerator.to_string() + "/" + denominator.to_string() + ")";
+    }
   };
   
   template<typename U>
   std::ostream &
   operator<<(std::ostream &os, const Frac<U> &i)
   {
-    if (i.numerator.get_poly().empty())
-    {
-      os << "0";
-      return os;
-    }
-    
-    if (i.denominator.get_poly().size() == 1 && i.denominator.get_poly()[0].get_coe() == 1 &&
-        i.denominator.get_poly()[0].get_symbols().empty())
-    {
-      os << i.numerator;
-      return os;
-    }
-    
-    os << "(" << i.numerator << "/" << i.denominator << ")";
+    os << i.to_string();
     return os;
   }
 }

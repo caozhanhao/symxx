@@ -25,6 +25,18 @@
 namespace symxx::utils
 {
   template<typename T>
+  inline std::string To_String(const T &num)
+  {
+    return std::to_string(num);
+  }
+  
+  template<>
+  inline std::string To_String(const Huge &num)
+  {
+    return num.to_string();
+  }
+  
+  template<typename T>
   inline T To_int(const std::string &num)
   {
     return std::stoll(num);
@@ -46,6 +58,17 @@ namespace symxx::utils
   inline Huge Abs(const Huge &num)
   {
     return num.abs();
+  }
+  
+  template<typename T, typename U>
+  inline auto Div(const T &num, const U &d)
+  {
+    return std::div(num, d);
+  }
+  
+  inline auto Div(const symxx::Huge &num, const symxx::Huge &d)
+  {
+    return divrem(num, d);
   }
   
   template<typename T, typename U>

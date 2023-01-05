@@ -19,7 +19,7 @@
 #include <tuple>
 
 using namespace symxx;
-using IntType = Huge;
+using IntType = int;
 
 void print_func(const std::string &name, const std::tuple<std::vector<std::string>, ExprNode<IntType>> &func)
 {
@@ -40,17 +40,13 @@ void print_result(const ExprNode<IntType> &expr)
 {
   if (auto fp = expr.try_eval(); fp != nullptr && fp->no_symbols())
   {
-    if (!fp->is_rational())
+    if (fp->is_rational() && fp->template to<Rational<IntType>>().is_int())
     {
-      std::cout << expr << " ≈ " << ::symxx::dtoa(fp->template to<double>()) << std::endl;
-    }
-    else if (fp->template to<Rational<IntType>>().get_denominator() != 1)
-    {
-      std::cout << expr << " ≈ " << ::symxx::dtoa(fp->template to<double>()) << std::endl;
+      std::cout << *fp << std::endl;
     }
     else
     {
-      std::cout << *fp << std::endl;
+      std::cout << expr << " = " << ::symxx::dtoa(fp->template to<double>()) << std::endl;
     }
     return;
   }

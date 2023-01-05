@@ -20,6 +20,7 @@
 #include <set>
 #include <functional>
 #include <chrono>
+#include <type_traits>
 #include <experimental/source_location>
 
 namespace symxx::test
@@ -101,30 +102,54 @@ namespace symxx::test
     return num;
   }
   
+  namespace test_internal
+  {
+    struct StrTag {};
+    struct SymxxTag {};
+    struct BasicTag {};
+    struct BoolTag {};
+    struct CharptrTag {};
+    template<typename U>
+    struct TagDispatch
+    {
+      using tag = std::conditional_t<std::is_same_v<std::decay_t<U>, std::string>, StrTag,
+          std::conditional_t<std::is_same_v<std::decay_t<U>, const char *>, CharptrTag,
+              std::conditional_t<std::is_same_v<std::decay_t<U>, bool>, BoolTag,
+                  std::conditional_t<std::is_fundamental_v<std::decay_t<U>>, BasicTag, SymxxTag>>>>;
+    };
+    
+    std::string internal_to_str(const char *a, CharptrTag)
+    {
+      return {a};
+    }
+    
+    std::string internal_to_str(std::string a, StrTag)
+    {
+      return a;
+    }
+    
+    std::string internal_to_str(bool a, BoolTag)
+    {
+      return a ? "true" : "false";
+    }
+    
+    template<typename T>
+    std::string internal_to_str(const T &a, SymxxTag)
+    {
+      return a.to_string();
+    }
+    
+    template<typename T>
+    std::string internal_to_str(const T &a, BasicTag)
+    {
+      return std::to_string(a);
+    }
+  }
+  
   template<typename T>
-  std::string to_str(T a)
+  std::string to_str(T &&a)
   {
-    return std::to_string(a);
-  }
-  
-  std::string to_str(const char *a)
-  {
-    return {a};
-  }
-  
-  std::string to_str(std::string a)
-  {
-    return a;
-  }
-  
-  std::string to_str(bool a)
-  {
-    return a ? "true" : "false";
-  }
-  
-  std::string to_str(const Huge &a)
-  {
-    return a.to_string();
+    return test_internal::internal_to_str(a, typename test_internal::TagDispatch<std::decay_t<T>>::tag{});
   }
   
   class Test
@@ -148,10 +173,12 @@ namespace symxx::test
                          + std::to_string(l.line()) +
                          ":" + l.function_name() + "()"]()
           {
-            if (t1 != t2)
+            auto v1 = t1();
+            auto v2 = t2();
+            if (v1 != v2)
             {
               std::cerr << ("\033[0;32;31m[FAIL]\033[m Test " + std::to_string(pos) + " in " + location
-                            + ": " + err_msg + "[" + to_str(t1) + "\033[0;32;31m != \033[m" + to_str(t2) + "].")
+                            + ": " + err_msg + "[" + to_str(v1) + "\033[0;32;31m != \033[m" + to_str(v2) + "].")
                         << std::endl;
             }
             else
@@ -160,7 +187,6 @@ namespace symxx::test
             }
           });
     }
-  
     void expected_success(const std::string &err_msg, std::function<std::tuple<int, std::string>()> func,
                           const std::experimental::source_location &l =
                           std::experimental::source_location::current())
@@ -233,5 +259,17 @@ namespace symxx::test
       std::cout << ("Time: " + ::symxx::dtoa(time) + "s.") << std::endl;
     }
   };
+  
+  Test &get_test()
+  {
+    static Test test;
+    return test;
+  }
+
+#define SYMXX_LAZY(x) [=](){return (x);}
+#define SYMXX_EXPECTED_EQ(msg, v1, v2) test::get_test().expected_eq((msg), SYMXX_LAZY((v1)), SYMXX_LAZY((v2)));
+#define SYMXX_EXPECTED_TRUE(msg, v1) test::get_test().expected_eq((msg), SYMXX_LAZY((v1)), SYMXX_LAZY(true));
+#define SYMXX_EXPECTED_FALSE(msg, v1) test::get_test().expected_eq((msg), SYMXX_LAZY((v1)), SYMXX_LAZY(false));
+#define SYMXX_EXPECTED_SUCCESS(msg, f) test::get_test().expected_success((msg), f);
 }
 #endif
