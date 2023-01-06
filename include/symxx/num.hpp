@@ -15,6 +15,7 @@
 #define SYMXX_NUM_HPP
 #include "error.hpp"
 #include "utils.hpp"
+#include "int_adapter.hpp"
 #include <cmath>
 #include <limits>
 #include <numeric>
@@ -29,7 +30,7 @@ namespace symxx
   decimal_places(T v)
   {
     std::size_t count = 0;
-    v = utils::Abs(v);
+    v = Abs(v);
     auto c = v - std::floor(v);
     T factor = 10;
     T eps = std::numeric_limits<T>::epsilon() * c;
@@ -130,13 +131,13 @@ namespace symxx
           auto k = n.find('/');
           if (k == std::string::npos)
           {
-            numerator = utils::To_int<T>(n);
+            numerator = To_int<T>(n);
             denominator = 1;
           }
           else
           {
-            numerator = utils::To_int<T>(n.substr(0, k));
-            denominator = utils::To_int<T>(n.substr(k + 1));
+            numerator = To_int<T>(n.substr(0, k));
+            denominator = To_int<T>(n.substr(k + 1));
           }
         }
       }
@@ -218,8 +219,8 @@ namespace symxx
       if (p == 0) return 1;
       if (p == 1) return *this;
       Rational<T> res;
-      res.numerator = static_cast<T>(utils::Pow(numerator, p.template to<double>()));
-      res.denominator = static_cast<T>(utils::Pow(denominator, p.template to<double>()));
+      res.numerator = static_cast<T>(Pow(numerator, p.template to<double>()));
+      res.denominator = static_cast<T>(Pow(denominator, p.template to<double>()));
       if (denominator == 0)
       {
         throw Error("denominator must not be 0.");
@@ -257,7 +258,7 @@ namespace symxx
   
     void reduce()
     {
-      T g = ::symxx::utils::Gcd(::symxx::utils::Abs(numerator), ::symxx::utils::Abs(denominator));
+      T g = ::symxx::Gcd(::symxx::Abs(numerator), ::symxx::Abs(denominator));
       numerator /= g;
       denominator /= g;
       if (denominator == -1)
@@ -286,11 +287,11 @@ namespace symxx
     {
       if (denominator != 1)
       {
-        return "(" + utils::To_String(numerator) + "/" + utils::To_String(denominator) + ")";
+        return "(" + To_String(numerator) + "/" + To_String(denominator) + ")";
       }
       else
       {
-        return utils::To_String(numerator);
+        return To_String(numerator);
       }
       return "";
     }
@@ -305,12 +306,12 @@ namespace symxx
   }
   
   template<typename T>
-  void radical_reduce(T &num, utils::Make_unsigned_t<T> &index, Rational<T> &coe, bool is_numerator)
+  void radical_reduce(T &num, Make_unsigned_t<T> &index, Rational<T> &coe, bool is_numerator)
   {
     //unfinished
     for (T i = 2; i < num && num > 1; i++)
     {
-      utils::Make_unsigned_t<T> k = 0;
+      Make_unsigned_t<T> k = 0;
       auto n = num;
       for (; n % i == 0; n /= i) ++k;
       if (k == 0 || k == 1) continue;
@@ -318,19 +319,19 @@ namespace symxx
       {
         if (is_numerator)
         {
-          coe *= static_cast<T>(utils::Pow(i, k / index));
+          coe *= static_cast<T>(Pow(i, k / index));
         }
         else
         {
-          coe /= static_cast<T>(utils::Pow(i, k / index));
+          coe /= static_cast<T>(Pow(i, k / index));
         }
-        num /= utils::Pow(i, k - k % index);
+        num /= Pow(i, k - k % index);
       }
       else if (n == 1)
       {
-        auto g = utils::Gcd(index, k);
+        auto g = Gcd(index, k);
         index /= g;
-        num = utils::Pow(i, k / g);
+        num = Pow(i, k / g);
       }
     }
   }
@@ -352,7 +353,7 @@ namespace symxx
     friend std::ostream &operator<<(std::ostream &os, const Real<U> &i);
   
   private:
-    using IndexT = utils::Make_unsigned_t<T>;
+    using IndexT = Make_unsigned_t<T>;
     IndexT index;
     Rational<T> radicand;
     Rational<T> coe;
@@ -495,7 +496,7 @@ namespace symxx
       if (!radicand.is_int())
       {
         coe /= radicand.get_denominator();
-        radicand *= utils::Pow(radicand.get_denominator(), index);
+        radicand *= Pow(radicand.get_denominator(), index);
       }
       T num = radicand.get_numerator();
       radical_reduce(num, index, coe, true);
@@ -537,7 +538,7 @@ namespace symxx
     
       if (index != 2)
       {
-        ret += "_" + utils::To_String(index) + "_/" + radicand.to_string();
+        ret += "_" + To_String(index) + "_/" + radicand.to_string();
       }
       else
       {
@@ -562,7 +563,7 @@ namespace symxx
     U internal_to(num_internal::NormalTag) const
     {
       return coe.template to<U>() *
-             static_cast<U>(utils::Pow(radicand.template to<double>(), 1.0 / static_cast<double>(index)));
+             static_cast<U>(Pow(radicand.template to<double>(), 1.0 / static_cast<double>(index)));
     }
     
     template<typename U>
@@ -585,7 +586,7 @@ namespace symxx
   }
   
   template<typename ReturnType, typename RadicandType>
-  Real<ReturnType> nth_root(utils::Make_unsigned_t<RadicandType> n, RadicandType q)
+  Real<ReturnType> nth_root(Make_unsigned_t<RadicandType> n, RadicandType q)
   {
     return Real<ReturnType>{1, q, n};
   }

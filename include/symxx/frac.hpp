@@ -15,6 +15,7 @@
 #define SYMXX_FRAC_HPP
 #include "num.hpp"
 #include "error.hpp"
+#include "int_adapter.hpp"
 #include <algorithm>
 #include <map>
 #include <memory>
@@ -443,7 +444,7 @@ namespace symxx
       else if (auto a = try_eval(); a != nullptr) return Poly{Term<T>{a->pow(i)}};
     
       std::vector<Term<T>> res;
-      using pT = utils::Make_unsigned_t<T>;
+      using pT = Make_unsigned_t<T>;
       if (!i.is_int())
       {
         throw Error("Must be a int.");
@@ -845,13 +846,13 @@ namespace symxx
         r *= Term<T>{den, {}, env};
       }
   
-      T g = utils::Gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
-                       denominator.get_poly()[0].get_coe().get_coe().to_t());
+      T g = Gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
+                denominator.get_poly()[0].get_coe().get_coe().to_t());
       for (auto &n: numerator.get_poly())
       {
         for (std::size_t i = 1; i < denominator.get_poly().size(); ++i)
         {
-          T new_g = utils::Gcd(n.get_coe().get_coe().to_t(), denominator.get_poly()[i].get_coe().get_coe().to_t());
+          T new_g = Gcd(n.get_coe().get_coe().to_t(), denominator.get_poly()[i].get_coe().get_coe().to_t());
           if (g % new_g == 0)
           {
             g = std::min(g, new_g);

@@ -11,15 +11,24 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
+//#define SYMXX_ENABLE_INT128
+//#define SYMXX_ENABLE_HUGE
 #include "symxx/symxx.hpp"
 #include "all_tests.hpp"
 #include <iostream>
 #include <map>
 #include <string>
 #include <tuple>
+#include <cstdint>
 
+#if defined(SYMXX_ENABLE_HUGE)
+using IntType = symxx::Huge;
+#elif defined(SYMXX_ENABLE_INT128)
+using IntType = __int128_t;
+#else
+using IntType = int64_t;
+#endif
 using namespace symxx;
-using IntType = int;
 
 void print_func(const std::string &name, const std::tuple<std::vector<std::string>, ExprNode<IntType>> &func)
 {
@@ -61,9 +70,11 @@ int main()
 {
   test::unittest();
   std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
-  std::map<std::string, Real<IntType>> vars{
-      {"pi", Rational<IntType>{157, 50}},
-      {"e",  Rational<IntType>{271, 100}}};
+  std::map<std::string, Real<IntType>> vars
+      {
+          {"pi", Rational<IntType>{157, 50}},
+          {"e",  Rational<IntType>{271, 100}}
+      };
   
   std::string str, cmd, body;
   while (true)

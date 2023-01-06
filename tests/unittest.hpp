@@ -239,7 +239,7 @@ namespace symxx::test
       auto e = s;
       for (size_t i = 0; i < all_tests.size(); ++i)
       {
-        if (curr_pos + 1 < marks.size() && i >= marks[curr_pos + 1].first)
+        if (curr_pos + 1 < marks.size() && (i >= marks[curr_pos + 1].first || i + 1 == all_tests.size()))
         {
           curr_msg = marks[curr_pos].second;
           ++curr_pos;
@@ -266,7 +266,7 @@ namespace symxx::test
             size_t ntests = end - beg;
             results += "[\033[0;32;32mPASSED\033[m] " + curr_msg
                        + " | " + std::to_string(ntests) + " tests passed."
-                       + "(" + ::symxx::dtoa(e - s) + " ms)\n";
+                       + "(" + ::symxx::dtoa((e - s) * 0.001) + " ms)\n";
           }
           print_mark = false;
           time += e - s;

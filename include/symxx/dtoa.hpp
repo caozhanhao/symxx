@@ -29,16 +29,16 @@
 
 namespace symxx
 {
-  constexpr auto DP_SIGNIFICAND_SIZE = 52;
-  constexpr auto DP_EXPONENT_BIAS = (0x3FF + DP_SIGNIFICAND_SIZE);
-  constexpr auto DP_MIN_EXPONENT = (-DP_EXPONENT_BIAS);
-  constexpr auto DP_EXPONENT_MASK = 0x7FF0000000000000;
-  constexpr auto DP_SIGNIFICAND_MASK = 0x000FFFFFFFFFFFFF;
-  constexpr auto DP_HIDDEN_BIT = 0x0010000000000000;
-  constexpr auto DIY_SIGNIFICAND_SIZE = 64;
-  constexpr auto D_1_LOG2_10 = 0.30102999566398114; //  1 / log2(10)
-  constexpr auto TEN9 = 1000000000;
-  constexpr auto SIGN_MASK = ((static_cast<uint64_t>(0x80000000) << 32) | static_cast<uint64_t>(0x00000000));
+  constexpr auto SYMXX_DTOA_DP_SIGNIFICAND_SIZE = 52;
+  constexpr auto SYMXX_DTOA_DP_EXPONENT_BIAS = (0x3FF + SYMXX_DTOA_DP_SIGNIFICAND_SIZE);
+  constexpr auto SYMXX_DTOA_DP_MIN_EXPONENT = (-SYMXX_DTOA_DP_EXPONENT_BIAS);
+  constexpr auto SYMXX_DTOA_DP_EXPONENT_MASK = 0x7FF0000000000000;
+  constexpr auto SYMXX_DTOA_DP_SIGNIFICAND_MASK = 0x000FFFFFFFFFFFFF;
+  constexpr auto SYMXX_DTOA_DP_HIDDEN_BIT = 0x0010000000000000;
+  constexpr auto SYMXX_DTOA_DIY_SIGNIFICAND_SIZE = 64;
+  constexpr auto SYMXX_DTOA_1_LOG2_10 = 0.30102999566398114; //  1 / log2(10)
+  constexpr auto SYMXX_DTOA_TEN9 = 1000000000;
+  constexpr auto SYMXX_DTOA_SIGN_MASK = ((static_cast<uint64_t>(0x80000000) << 32) | static_cast<uint64_t>(0x00000000));
   const std::array<uint64_t, 687> powers_ten{0xbf29dcaba82fdeae, 0xeef453d6923bd65a, 0x9558b4661b6565f8,
                                              0xbaaee17fa23ebf76, 0xe95a99df8ace6f54, 0x91d8a02bb6c10594,
                                              0xb64ec836a47146fa, 0xe3e27a444d8d98b8, 0x8e6d8c6ab0787f73,
@@ -343,17 +343,17 @@ namespace symxx
     explicit DiyFp(const double &d)
     {
       auto d64 = double_to_uint64(d);
-      int biased_e = static_cast<int>((d64 & DP_EXPONENT_MASK) >> DP_SIGNIFICAND_SIZE);
-      uint64_t significand = (d64 & DP_SIGNIFICAND_MASK);
+      int biased_e = static_cast<int>((d64 & SYMXX_DTOA_DP_EXPONENT_MASK) >> SYMXX_DTOA_DP_SIGNIFICAND_SIZE);
+      uint64_t significand = (d64 & SYMXX_DTOA_DP_SIGNIFICAND_MASK);
       if (biased_e != 0)
       {
-        f = significand + DP_HIDDEN_BIT;
-        e = biased_e - DP_EXPONENT_BIAS;
+        f = significand + SYMXX_DTOA_DP_HIDDEN_BIT;
+        e = biased_e - SYMXX_DTOA_DP_EXPONENT_BIAS;
       }
       else
       {
         f = significand;
-        e = DP_MIN_EXPONENT + 1;
+        e = SYMXX_DTOA_DP_MIN_EXPONENT + 1;
       }
     }
     
@@ -383,33 +383,33 @@ namespace symxx
     DiyFp normalize()
     {
       DiyFp res = *this;
-      while (!(res.f & DP_HIDDEN_BIT))
+      while (!(res.f & SYMXX_DTOA_DP_HIDDEN_BIT))
       {
         res.f <<= 1;
         res.e--;
       }
-      res.f <<= (DIY_SIGNIFICAND_SIZE - DP_SIGNIFICAND_SIZE - 1);
-      res.e = res.e - (DIY_SIGNIFICAND_SIZE - DP_SIGNIFICAND_SIZE - 1);
+      res.f <<= (SYMXX_DTOA_DIY_SIGNIFICAND_SIZE - SYMXX_DTOA_DP_SIGNIFICAND_SIZE - 1);
+      res.e = res.e - (SYMXX_DTOA_DIY_SIGNIFICAND_SIZE - SYMXX_DTOA_DP_SIGNIFICAND_SIZE - 1);
       return res;
     }
     
     DiyFp normalize_boundary()
     {
       DiyFp res = *this;
-      while (!(res.f & (DP_HIDDEN_BIT << 1)))
+      while (!(res.f & (SYMXX_DTOA_DP_HIDDEN_BIT << 1)))
       {
         res.f <<= 1;
         res.e--;
       }
-      res.f <<= (DIY_SIGNIFICAND_SIZE - DP_SIGNIFICAND_SIZE - 2);
-      res.e = res.e - (DIY_SIGNIFICAND_SIZE - DP_SIGNIFICAND_SIZE - 2);
+      res.f <<= (SYMXX_DTOA_DIY_SIGNIFICAND_SIZE - SYMXX_DTOA_DP_SIGNIFICAND_SIZE - 2);
+      res.e = res.e - (SYMXX_DTOA_DIY_SIGNIFICAND_SIZE - SYMXX_DTOA_DP_SIGNIFICAND_SIZE - 2);
       return res;
     }
     
     [[nodiscard]] std::tuple<DiyFp, DiyFp> normalized_boundaries() const
     {
       DiyFp pl, mi;
-      bool significand_is_zero = f == DP_HIDDEN_BIT;
+      bool significand_is_zero = f == SYMXX_DTOA_DP_HIDDEN_BIT;
       pl.f = (f << 1) + 1;
       pl.e = e - 1;
       pl = pl.normalize_boundary();
@@ -436,7 +436,7 @@ namespace symxx
   
   int k_comp(int e, int alpha)
   {
-    return std::ceil((alpha - e + 63) * D_1_LOG2_10);
+    return std::ceil((alpha - e + 63) * SYMXX_DTOA_1_LOG2_10);
   }
   
   void grisu_round(std::string &buffer, uint64_t delta, uint64_t rest, uint64_t ten_kappa, uint64_t wp_w)
@@ -460,7 +460,7 @@ namespace symxx
     uint32_t p1 = Mp.f >> -one.e;
     uint64_t p2 = Mp.f & (one.f - 1);
     kappa = 10;
-    div = TEN9;
+    div = SYMXX_DTOA_TEN9;
     while (kappa > 0)
     {
       d = static_cast<int>(p1 / div);
@@ -590,8 +590,10 @@ namespace symxx
   
   std::string dtoa(const double &value)
   {
-    if (value == 0 && ((double_to_uint64(value) & SIGN_MASK) != 0))
+    if (value == 0 && ((double_to_uint64(value) & SYMXX_DTOA_SIGN_MASK) != 0))
+    {
       return "-0.0";
+    }
     std::string buffer;
     if (value == 0)
       buffer = "0.0";

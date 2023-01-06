@@ -17,14 +17,16 @@
 
 #ifndef SYMXX_HUGE_HPP
 #define SYMXX_HUGE_HPP
-
+#if defined(SYMXX_ENABLE_HUGE)
 #include "error.hpp"
 #include <vector>
+#include <array>
 #include <string>
 #include <iostream>
 #include <cmath>
 #include <algorithm>
 #include <cstdint>
+#include <numeric>
 #include <type_traits>
 #include <tuple>
 #include <span>
@@ -43,6 +45,7 @@ namespace symxx
   constexpr digit SYMXX_HUGE_LOW_MASK = static_cast<digit>(SYMXX_HUGE_BASE - 1);
   constexpr digit SYMXX_HUGE_DECIMAL_SHIFT = 9;
   constexpr digit SYMXX_HUGE_DECIMAL_BASE = static_cast<digit>(1000000000);
+  constexpr double SYMXX_HUGE_LOG2_10 = 3.32192809488736234;
   namespace huge_internal
   {
     namespace helper
@@ -422,7 +425,9 @@ namespace symxx
       digits_gcd(b, tmp, ret);
     }
   
-    void digits_pow(const std::span<const digit> &a, const std::span<const digit> &b, std::vector<digit> &ret)
+    void digits_pow
+    (const std::span<const digit> &a, const std::span<const digit> &b,
+     bool apositive, bool bpositive, std::vector<digit> &ret, bool& retpositive)
     {
       ret.clear();
       if (b.empty())//b==0
@@ -445,7 +450,6 @@ namespace symxx
         return;
       }
       //unfinished
-      throw Error("Unfinished");
     }
   
     void digits_bitwise(const std::span<const digit> &a, const std::span<const digit> &b,
@@ -555,7 +559,7 @@ namespace symxx
       }
       constexpr size_t convwidth = 9;
       constexpr size_t convmultmax = 1000000000;
-      const double sz = static_cast<double>(s.size() - pos) * std::log(10) / std::log(32768) + 1;
+      const double sz = static_cast<double>(s.size() - pos) * (SYMXX_HUGE_LOG2_10 / 25) + 1;
       digits.reserve(static_cast<size_t>(sz));
     
       while (pos < end)
@@ -763,7 +767,7 @@ namespace symxx
     [[nodiscard]] Huge pow(const Huge &h) const
     {
       std::vector<digit> ret;
-      huge_internal::digits_pow(digits, h.digits, ret);
+      //huge_internal::digits_pow(digits, h.digits, ret);
       return Huge(ret);
     }
   
@@ -934,4 +938,5 @@ namespace symxx
     return {Huge{res, is_positive}, Huge{rem}};
   }
 }
+#endif
 #endif

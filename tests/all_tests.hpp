@@ -26,7 +26,9 @@ namespace symxx::test
     try
     {
       auto &test = test::get_test();
+#if defined(SYMXX_ENABLE_HUGE)
       huge_test();
+#endif
       dtoa_test();
       num_test();
       test.run_tests();
