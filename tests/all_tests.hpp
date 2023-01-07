@@ -18,6 +18,7 @@
 #include "huge_test.hpp"
 #include "dtoa_test.hpp"
 #include "num_test.hpp"
+#include "strconv_test.hpp"
 
 namespace symxx::test
 {
@@ -31,6 +32,7 @@ namespace symxx::test
 #endif
       dtoa_test();
       num_test();
+      strconv_test();
       test.run_tests();
       test.print_results();
     }

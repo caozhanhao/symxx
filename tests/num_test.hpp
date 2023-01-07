@@ -48,6 +48,8 @@ namespace symxx::test
     SYMXX_EXPECT_EQ("Nth_root 3", nth_root<int>(2, 9), 3);
     SYMXX_EXPECT_EQ("Nth_root 4", nth_root<int>(2, 36), 6);
     SYMXX_EXPECT_EQ("Nth_root 5", nth_root<int>(4, 4), g2);
+    SYMXX_EXPECT_EQ("Nth_root 6", nth_root<int>(2, {1, 3}), (Real<int>({1, 3}, 3, 2)));
+    SYMXX_EXPECT_EQ("Nth_root 7", nth_root<int>(2, {1, 9}), (Rational<int>(1, 3)));
   
     SYMXX_EXPECT_EQ("Cmp 1", g4, 2);
     SYMXX_EXPECT_TRUE("Cmp 2", g2 > (Rational<int>{141, 100}));
@@ -65,7 +67,7 @@ namespace symxx::test
     SYMXX_EXPECT_EQ("Mul 4", g2 * g4, (Real<int>{1, 8, 2}));
     SYMXX_EXPECT_EQ("Mul 5", g2 * g4_4, 2);
     SYMXX_EXPECT_EQ("Mul 6", g2 * g2, 2);
-    SYMXX_EXPECT_EQ("Mul 7", g2 * g2.reciprocate(), 1);
+    SYMXX_EXPECT_EQ("Mul 7", g2 * g2.inverse(), 1);
     SYMXX_EXPECT_EQ("Mul 8", (g3 * Real<int>{1, Rational<int>{1, 3}, 2}), 1);
     SYMXX_EXPECT_EQ("Mul 9", g2 * 2, nth_root<int>(2, 8));
     SYMXX_EXPECT_EQ("Div 1", g4 / g2, g2);
@@ -74,6 +76,7 @@ namespace symxx::test
     SYMXX_EXPECT_EQ("Div 4", g2 / g3, (Real<int>{1, {2, 3}, 2}));
     SYMXX_EXPECT_EQ("Div 5", g3 / g2, (Real<int>{1, {3, 2}, 2}));
     SYMXX_EXPECT_EQ("Div 6", g3 / g3, 1);
+    SYMXX_EXPECT_EXCEPTION("Div 7", g2 / 0, Error(symxx_division_by_zero));
   }
 }
 #endif

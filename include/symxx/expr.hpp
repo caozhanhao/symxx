@@ -66,12 +66,6 @@ namespace symxx
   template<typename T>
   class ExprNode
   {
-    template<typename U>
-    friend std::ostream &operator<<(std::ostream &os, const ExprNode<U> &i);
-    
-    template<typename U>
-    friend bool withparen(const ExprNode<U> &node, bool left);
-  
   private:
     std::variant<Frac<T>, OpData<T>> val;
     NodeType node_type;
@@ -138,7 +132,7 @@ namespace symxx
         }
           break;
         default:
-          throw Error("Unexpected op '" + std::string(1, data.op) + "'.");
+          symxx_unreachable();
           break;
       }
       return nullptr;
@@ -183,13 +177,109 @@ namespace symxx
         }
           break;
         default:
-          throw Error("Unexpected op '" + std::string(1, data.op) + "'.");
+          symxx_unreachable();
           break;
       }
       node_type = NodeType::FRAC;
     }
   
+    std::string to_string() const
+    {
+      if (type() == NodeType::FRAC)
+      {
+        return frac().to_string();
+      }
+    
+      std::string ret;
+      auto &opd = opdata();
+      if (withparen(true))
+      {
+        ret += "(" + opd.lhs->to_string() + ")";
+      }
+      else
+      {
+        ret += opd.lhs->to_string();
+      }
+      ret += opd.op;
+      if (withparen(false))
+      {
+        ret += "(" + opd.rhs->to_string() + ")";
+      }
+      else
+      {
+        ret += opd.rhs->to_string();
+      }
+      return ret;
+    }
+
   private:
+    bool withparen(bool left) const
+    {
+      if (type() == NodeType::FRAC)
+      {
+        return false;
+      }
+      auto &opd = opdata();
+      auto op = opd.op;
+      if (opd.lhs == nullptr || opd.rhs == nullptr)
+      {
+        return false;
+      }
+    
+      if (left)
+      {
+        if (opd.lhs->type() != NodeType::OP)
+        {
+          return false;
+        }
+        char leftop = opd.lhs->opdata().op;
+        switch (op)
+        {
+          case '*':
+          case '/':
+            if (leftop == '+' || leftop == '-')
+            {
+              return true;
+            }
+          case '^':
+            return true;
+        }
+      }
+      else
+      {
+        if (opd.rhs->type() != NodeType::OP)
+        {
+          return false;
+        }
+        char rightop = opd.rhs->opdata().op;
+        switch (op)
+        {
+          case '*':
+            if (rightop == '+' || rightop == '-')
+            {
+              return true;
+            }
+            break;
+          case '/':
+            if (rightop == '+' || rightop == '-' || rightop == '*' || rightop == '/')
+            {
+              return true;
+            }
+            break;
+          case '-':
+            if (rightop == '+' || rightop == '-')
+            {
+              return true;
+            }
+            break;
+          case '^':
+            return true;
+            break;
+        }
+      }
+      return false;
+    }
+  
     auto type() const { return node_type; }
   
     auto &frac() { return std::get<Frac<T>>(val); }
@@ -199,91 +289,13 @@ namespace symxx
     auto &frac() const { return std::get<Frac<T>>(val); }
   
     auto &opdata() const { return std::get<OpData<T>>(val); }
-  };
   
-  template<typename U>
-  bool withparen(const ExprNode<U> &node, bool left)
-  {
-    if (node.type() == NodeType::FRAC)
-    {
-      return false;
-    }
-    auto &opdata = node.opdata();
-    auto op = opdata.op;
-    if (opdata.lhs == nullptr || opdata.rhs == nullptr)
-    {
-      return false;
-    }
-    
-    if (left)
-    {
-      if (opdata.lhs->type() != NodeType::OP)
-        return false;
-      char leftop = opdata.lhs->opdata().op;
-      switch (op)
-      {
-        case '*':
-        case '/':
-          if (leftop == '+' || leftop == '-')
-          {
-            return true;
-          }
-        case '^':
-          return true;
-      }
-    }
-    else
-    {
-      if (opdata.rhs->type() != NodeType::OP)
-        return false;
-      char rightop = opdata.rhs->opdata().op;
-      switch (op)
-      {
-        case '*':
-          if (rightop == '+' || rightop == '-')
-          {
-            return true;
-          }
-          break;
-        case '/':
-          if (rightop == '+' || rightop == '-' || rightop == '*' || rightop == '/')
-          {
-            return true;
-          }
-          break;
-        case '-':
-          if (rightop == '+' || rightop == '-')
-          {
-            return true;
-          }
-          break;
-        case '^':
-          return true;
-          break;
-      }
-    }
-    return false;
-  }
+  };
   
   template<typename U>
   std::ostream &operator<<(std::ostream &os, const ExprNode<U> &i)
   {
-    if (i.type() == NodeType::FRAC)
-    {
-      os << i.frac();
-      return os;
-    }
-    
-    auto &opdata = i.opdata();
-    if (withparen<U>(i, true))
-      os << "(" << *opdata.lhs << ")";
-    else
-      os << *opdata.lhs;
-    os << opdata.op;
-    if (withparen(i, false))
-      os << "(" << *opdata.rhs << ")";
-    else
-      os << *opdata.rhs;
+    os << i.to_string();
     return os;
   }
 }

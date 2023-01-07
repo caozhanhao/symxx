@@ -30,9 +30,6 @@ namespace symxx
   template<typename T>
   class Term
   {
-    template<typename U>
-    friend std::ostream &operator<<(std::ostream &os, const Term<U> &i);
-
   private:
     Real <T> coe;
     std::map<std::string, Rational < T>> symbols;
@@ -158,19 +155,13 @@ namespace symxx
     template<typename U>
     U to() const
     {
-      if (!no_symbols())
-      {
-        throw Error("Term must not have symbols.");
-      }
+      symxx_assert(no_symbols(), "Term must not have symbols.");
       return get_coe().template to<U>();
     }
   
     Real <T> eval() const
     {
-      if (!no_symbols())
-      {
-        throw Error("Term must not have symbols.");
-      }
+      symxx_assert(no_symbols(), "Term must not have symbols.");
       return get_coe();
     }
   
@@ -252,22 +243,15 @@ namespace symxx
     std::string to_string() const
     {
       auto coe = get_coe();
-      if (coe == 0)
-      {
-        return "0";
-      }
+      if (coe == 0) return "0";
       auto symbols = get_symbols();
       std::string ret;
       if (coe != 1 || symbols.empty())
       {
         if (coe == -1 && !symbols.empty())
-        {
           ret += "-";
-        }
         else
-        {
           ret += coe.to_string();
-        }
       }
       int exp = 1;
       for (auto it = symbols.begin(); it != symbols.end(); ++it)
@@ -280,13 +264,9 @@ namespace symxx
         else
         {
           if (it->first.size() != 1)
-          {
             ret += "{" + it->first + "}";
-          }
           else
-          {
             ret += it->first;
-          }
         }
       }
       return ret;
@@ -337,9 +317,6 @@ namespace symxx
   template<typename T>
   class Poly
   {
-    template<typename U>
-    friend std::ostream &operator<<(std::ostream &os, const Poly<U> &i);
-
   private:
     std::vector<Term<T>> poly;
 
@@ -445,10 +422,7 @@ namespace symxx
     
       std::vector<Term<T>> res;
       using pT = Make_unsigned_t<T>;
-      if (!i.is_int())
-      {
-        throw Error("Must be a int.");
-      }
+      symxx_assert(i.is_int(), "Must be a int.");
       auto avecvec = solve_variable_eq(i.to_t(), static_cast<T>(poly.size()));
       pT i_factorial = 1;
       for (pT t = 1; t <= i.to_t(); ++t)
@@ -599,20 +573,17 @@ namespace symxx
   
     std::string to_string() const
     {
-      if (poly.empty())return "";
+      if (poly.empty()) return "";
       auto cnt = std::count_if(poly.cbegin(), poly.cend(), [](auto &&f) { return f.get_coe() != 0; });
+      if (cnt == 0) return "";
       std::string ret;
-      if (cnt > 1) ret += "(";
       bool first = true;
       for (auto it = poly.begin(); it < poly.end(); ++it)
       {
         if (it->get_coe() == 0 && cnt > 0)
-        {
           continue;
-        }
         if (first)
         {
-          if (!it->is_positive()) ret += "-";
           ret += it->to_string();
           first = false;
           continue;
@@ -629,10 +600,6 @@ namespace symxx
           continue;
         }
       }
-      if (cnt > 1)
-      {
-        ret += ")";
-      }
       return ret;
     }
   };
@@ -648,9 +615,6 @@ namespace symxx
   template<typename T>
   class Frac
   {
-    template<typename U>
-    friend std::ostream &operator<<(std::ostream &os, const Frac<U> &i);
-  
   private:
     Poly<T> numerator;
     Poly<T> denominator;
@@ -678,8 +642,7 @@ namespace symxx
     Frac(const Poly<T> &n, const Poly<T> &d, Environment<T> e = nullptr)
         : numerator(n), denominator(d), env(e)
     {
-      if (denominator.is_zero())
-        throw Error("denominator must not be 0.");
+      symxx_assert(!denominator.is_zero(), symxx_division_by_zero);
       reduce();
     }
     
@@ -702,8 +665,6 @@ namespace symxx
         denominator *= t.denominator;
         numerator = numerator * t.denominator + t.numerator * denominator;
       }
-      if (denominator.is_zero())
-        throw Error("denominator must not be 0.");
       reduce();
       return *this;
     }
@@ -741,8 +702,7 @@ namespace symxx
     {
       numerator *= t.numerator;
       denominator *= t.denominator;
-      if (denominator.is_zero())
-        throw Error("denominator must not be 0.");
+      symxx_assert(!denominator.is_zero(), symxx_division_by_zero);
       reduce();
       return *this;
     }
@@ -791,8 +751,7 @@ namespace symxx
       numerator.set_env(val);
       denominator.set_env(val);
       reduce();
-      if (denominator.is_zero())
-        throw Error("denominator must not be 0.");
+      symxx_assert(!denominator.is_zero(), symxx_division_by_zero);
     }
   
     bool no_symbols() const
@@ -872,19 +831,19 @@ namespace symxx
       auto a = numerator.negate();
       return {a, denominator, env};
     }
-    
-    Frac reciprocate() const { return {denominator, numerator, env}; }
+  
+    Frac inverse() const { return {denominator, numerator, env}; }
     
     std::string to_string() const
     {
       if (numerator.get_poly().empty()) return "0";
       std::string ret;
       if (denominator.get_poly().size() == 1 && denominator.get_poly()[0].get_coe() == 1
-          && denominator.get_poly()[0].get_symbols().empty())
+          && denominator.get_poly()[0].no_symbols())
       {
         return numerator.to_string();
       }
-      return "(" + numerator.to_string() + "/" + denominator.to_string() + ")";
+      return numerator.to_string() + "/" + denominator.to_string();
     }
   };
   

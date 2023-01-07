@@ -80,7 +80,7 @@ namespace symxx
   {
     return Huge{num};
   }
-    template<>
+  template<>
   inline std::string To_String(const Huge &num)
   {
     return num.to_string();
@@ -112,14 +112,23 @@ namespace symxx
   }
 #endif
 #if defined(SYMXX_ENABLE_INT128)
+  
+  template<>
+  class Make_unsigned<__int128_t>
+  {
+  public:
+    using type = __uint128_t;
+  };
+  
   constexpr double SYMXX_INT_ADAPTER_LOG2_10 = 3.32192809488736234;
-  inline auto Bit_length(const __int128_t& d)
+  
+  inline auto Bit_length(const __int128_t &d)
   {
     size_t k = 0;
     __int128_t tmp = std::abs(d);
-    if(tmp < 0)
+    if (tmp < 0)
       throw Error("Unexpected overflow.");
-    for (;tmp != 0; tmp >>= 1)
+    for (; tmp != 0; tmp >>= 1)
       ++k;
     return k;
   }
@@ -140,7 +149,7 @@ namespace symxx
   }
   
   template<>
-  inline std::string To_String(const std::make_unsigned_t<__int128_t> &num)
+  inline std::string To_String(const Make_unsigned_t<__int128_t> &num)
   {
     std::string ret;
     auto sz = static_cast<size_t>(static_cast<double>(Bit_length(num)) / SYMXX_INT_ADAPTER_LOG2_10) + 1;
@@ -148,9 +157,20 @@ namespace symxx
     auto rit = ret.rbegin();
     for (auto rem = num; rem > 0; rem /= 10)
       *rit++ = '0' + static_cast<int>(rem % 10);
-    if(*ret.begin() == '\0') ret.erase(ret.begin());
+    if (*ret.begin() == '\0') ret.erase(ret.begin());
     return ret;
   }
+  
+  inline auto Abs(const __int128_t &num)
+  {
+    return num > 0 ? num : (static_cast<__int128_t>(0) - num);
+  }
+  
+  inline auto Abs(const Make_unsigned_t<__int128_t> &num)
+  {
+    return num;
+  }
+
 #endif
 }
 #endif

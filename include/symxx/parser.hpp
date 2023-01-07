@@ -26,6 +26,7 @@ namespace symxx
 {
   enum class ExprTokenType
   {
+    INIT,
     OP,
     LPAREN,
     RPAREN,
@@ -64,12 +65,12 @@ namespace symxx
     std::size_t pos;
     ExprToken<T> curr;
     bool parsing_end;
-    bool last_token_added_a_mul;
+    bool have_added_a_mul;
     bool parsing_negative;
   
   public:
     ExprParser(const std::string &r)
-        : raw(r), pos(0), curr(ExprTokenType::OP, '\0'), parsing_end(false), last_token_added_a_mul(false),
+        : raw(r), pos(0), curr(ExprTokenType::INIT, '\0'), parsing_end(false), have_added_a_mul(false),
           parsing_negative(false) {}
     
     ExprNode <T> parse()
@@ -79,10 +80,7 @@ namespace symxx
       std::stack<char> op;
       auto handle = [&nodes, &op]()
       {
-        if (nodes.size() < 2 || op.empty())
-        {
-          throw Error("Invaild string.");
-        }
+        symxx_assert(nodes.size() >= 2 && !op.empty(), "Invaild string.");
         auto *rhs = nodes.top();
         nodes.pop();
         auto *lhs = nodes.top();
@@ -110,16 +108,13 @@ namespace symxx
         }
         else if (curr.type() == ExprTokenType::RPAREN)
         {
-          if (op.empty())
-            throw Error("Expected '('");
+          symxx_assert(!op.empty(), "Expected '('");
           while (!nodes.empty() && op.top() != '(')
           {
             handle();
-            if (op.empty())
-              throw Error("Expected '('");
+            symxx_assert(!op.empty(), "Expected '('");
           }
-          if (op.empty())
-            throw Error("Invaild string.");
+          symxx_assert(!op.empty(), "Invaild string.");
           op.pop();
           continue;
         }
@@ -129,12 +124,13 @@ namespace symxx
           continue;
         }
         else
-          throw Error("Unexpected ExprToken.");
+        {
+          symxx_unreachable("unexpected ExprToken.");
+        }
       }
       while (!op.empty())
         handle();
-      if (nodes.size() != 1)
-        throw Error("Invaild string.");
+      symxx_assert(nodes.size() == 1, "Invaild string.");
       return *nodes.top();
     }
   
@@ -147,12 +143,15 @@ namespace symxx
     ExprToken<T> get_ExprToken()
     {
       while (pos < raw.size() && std::isspace(raw[pos]))
+      {
         ++pos;
+      }
       if (pos >= raw.size())
       {
         parsing_end = true;
         return curr;
       }
+      if (curr.type() == ExprTokenType::INIT && raw[pos] == '+') ++pos;//+1, +x
       auto &ch = raw[pos];
       if (ch == '+' || ch == '-' || ch == '*' || ch == '/' || ch == '^')
       {
@@ -162,7 +161,8 @@ namespace symxx
           return {ExprTokenType::OP, '^'};
         }
         else if (ch == '-' &&
-                 (curr.type() == ExprTokenType::LPAREN || (curr.type() == ExprTokenType::OP && curr.ch() == '\0')))
+                 (curr.type() == ExprTokenType::LPAREN || (curr.type() == ExprTokenType::INIT)))
+          //(-1), -1
         {
           parsing_negative = true;
           pos++;
@@ -177,15 +177,15 @@ namespace symxx
       else if (ch == '(')
       {
         if ((curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT ||
-             curr.type() == ExprTokenType::RPAREN) && !last_token_added_a_mul)
+             curr.type() == ExprTokenType::RPAREN) && !have_added_a_mul)
         {
-          last_token_added_a_mul = true;
+          have_added_a_mul = true;
           return {ExprTokenType::OP, '*'};
         }
         else
         {
           ++pos;
-          last_token_added_a_mul = false;
+          have_added_a_mul = false;
           return {ExprTokenType::LPAREN, '('};
         }
       }
@@ -195,16 +195,19 @@ namespace symxx
         return {ExprTokenType::RPAREN, ')'};
       }
   
-      if (std::isdigit(ch))
+      if (std::isdigit(ch) || ch == '.')
       {
         std::string temp;
         do
         {
           temp += raw[pos];
           ++pos;
-        } while (pos < raw.size() && (std::isdigit(raw[pos]) || raw[pos] == '.'));
+        } while (pos < raw.size() && (std::isdigit(raw[pos]) || raw[pos] == '.' || raw[pos] == '/'));
+    
         if (!parsing_negative)
-          return {ExprTokenType::DIGIT, Frac<T>{Rational<T>{temp}}};
+        {
+          return {ExprTokenType::DIGIT, Frac < T > {Rational < T > {temp}}};
+        }
         else
         {
           parsing_negative = false;
@@ -212,46 +215,54 @@ namespace symxx
         }
       }
       else if (std::isalpha(ch) || ch == '{')
-        // when parser adds '*' to "2{x}", ch might be '}'
       {
         std::string symbol;
         if (ch == '{')
         {
-          ++pos;
-          do
+          ++pos;//skip '{'
+          while (pos < raw.size() && raw[pos] != '}')
           {
             symbol += raw[pos];
             ++pos;
-          } while (pos < raw.size() && raw[pos] != '}');
+          }
         }
         else
+        {
           symbol += ch;
-        if (curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT ||
-            curr.type() == ExprTokenType::RPAREN)
-        {
-          last_token_added_a_mul = true;
-          if (ch == '{')
-            pos -= symbol.size() + 1;
-          return {ExprTokenType::OP, '*'};
         }
-        else
-          ++pos;
-        if (last_token_added_a_mul)
+        ++pos;//skip a single char symbol or '}'
+  
+        if (!have_added_a_mul)
         {
-          ++pos;
-          last_token_added_a_mul = false;
+          if (curr.type() == ExprTokenType::SYMBOL || curr.type() == ExprTokenType::DIGIT ||
+              curr.type() == ExprTokenType::RPAREN)// aa, 2a, (1+1)a
+          {
+            //recover the pos when not having parsed this token
+            if (ch == '{')
+            {
+              pos -= symbol.size() + 2;
+            }
+            else
+            {
+              pos--;
+            }
+            have_added_a_mul = true;
+            return {ExprTokenType::OP, '*'};
+          }
         }
+        else { have_added_a_mul = false; }
+  
         if (!parsing_negative)
-          return {ExprTokenType::SYMBOL, Frac<T>{{Term<T>{Real<T>{1}, symbol}}}};
-        else
+        {//1+x
+          return {ExprTokenType::SYMBOL, Frac < T > {{Term < T > {Real < T > {1}, symbol}}}};
+        }
+        else//1-x, -x
         {
-          ++pos;
           parsing_negative = false;
           return {ExprTokenType::SYMBOL, Frac<T>{{Term<T>{Real<T>{-1}, symbol}}}};
         }
       }
-      else
-        throw Error("Unexpected '" + std::string(1, ch) + "'.");
+      symxx_unreachable("unexpected '" + std::string(1, ch) + "'.");
       return curr;
     }
     

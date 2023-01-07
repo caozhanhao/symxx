@@ -359,7 +359,7 @@ namespace symxx
     
     DiyFp operator-(const DiyFp &x) const
     {
-      if (e != x.e || f < x.f) throw Error("These DiyFps can not minus.");
+      symxx_assert(e == x.e && f >= x.f, "These DiyFps can not minus.");
       return {f - x.f, e};
     }
     

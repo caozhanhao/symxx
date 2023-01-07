@@ -32,6 +32,7 @@
 #include <span>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <bits/stl_algobase.h>
 
 namespace symxx
@@ -66,7 +67,7 @@ namespace symxx
         return k;
 #endif
       }
-      
+  
       // Shift the digits a[0,m] d bits left/right to z[0,m]
       // Returns the d bits shifted out of the top.
       digit digits_left_shift(const std::span<digit> z, const std::span<const digit> a, size_t m, int d)
@@ -80,7 +81,7 @@ namespace symxx
         }
         return carry;
       }
-      
+  
       digit digits_right_shift(const std::span<digit> z, const std::span<const digit> a, size_t m, int d)
       {
         digit carry = 0;
@@ -93,7 +94,7 @@ namespace symxx
         }
         return carry;
       }
-      
+  
       std::tuple<std::vector<digit>, std::vector<digit>> k_mul_split(const std::span<const digit> n, const size_t &size)
       {
         std::vector<digit> low(std::min(n.size(), size));
@@ -103,7 +104,7 @@ namespace symxx
                   n.begin() + static_cast<long long>( low.size()) + static_cast<long long>(high.size()), high.begin());
         return {std::move(high), std::move(low)};
       }
-      
+  
       //Requirements: x.size() >= y.size()
       digit digits_inplace_add(const std::span<digit> x, const std::span<const digit> y)
       {
@@ -120,7 +121,7 @@ namespace symxx
         }
         return carry;
       }
-      
+  
       digit digits_inplace_sub(const std::span<digit> x, const std::span<const digit> y)
       {
         digit borrow = 0;
@@ -137,8 +138,17 @@ namespace symxx
         }
         return borrow;
       }
+  
+      void digits_rem_by1(const std::span<const digit> x, const digit &y, std::vector<digit> &rem)
+      {
+        rem.clear();
+        twodigits remtd = 0;
+        for (int size = static_cast<int>(x.size()); --size >= 0;)
+          remtd = ((remtd << SYMXX_HUGE_SHIFT) | x[size]) % y;
+        if(remtd != 0)
+          rem.emplace_back(remtd);
+      }
     }
-    
     void digits_add(const std::span<const digit> c, const std::span<const digit> d, std::vector<digit> &ret)
     {
       ret.clear();
@@ -403,15 +413,29 @@ namespace symxx
       while (rem.back() == 0) rem.pop_back();
       while (res.back() == 0) res.pop_back();
     }
-  
-    // just for tests, unfinished
-    void digits_rem(const std::span<const digit> &cd, const std::span<const digit> &dd, std::vector<digit> &rem)
+
+    void digits_rem(const std::span<const digit> &a, const std::span<const digit> &b, std::vector<digit> &rem)
     {
-      //unfinished
-      std::vector<digit> tmp;
-      digits_divrem(cd, dd, tmp, rem);
+      rem.clear();
+      if (digits_cmp(a, b) < 0)
+      {
+        rem.insert(rem.end(), a.begin(), a.end());
+        return;
+      }
+      if (b.size() == 1)
+      {
+        helper::digits_rem_by1(a, b[0], rem);
+        return;
+      }
+      else
+      {
+        std::vector<digit> tmp;
+        digits_divrem(a, b, tmp, rem);
+      }
+      return;
     }
   
+    // just for tests, unfinished
     void digits_gcd(const std::span<const digit> &a, const std::span<const digit> &b, std::vector<digit> &ret)
     {
       //unfinished
@@ -424,7 +448,13 @@ namespace symxx
       digits_rem(a, b, tmp);
       digits_gcd(b, tmp, ret);
     }
-  
+    
+    void digits_inverse_mod(const std::span<const digit> &a, const std::span<const digit> &n, std::vector<digit> &ret)
+    {
+      std::vector<digit> b{1};
+      std::vector<digit> c;
+    }
+    
     void digits_pow
     (const std::span<const digit> &a, const std::span<const digit> &b,
      bool apositive, bool bpositive, std::vector<digit> &ret, bool& retpositive)
@@ -546,7 +576,7 @@ namespace symxx
       std::size_t pos = 0;
       std::size_t end = s.size();
       while (!(isdigit(s[pos]) || s[pos] == '+' || s[pos] == '-') && pos < end) ++pos;
-      if (pos >= end) throw Error("Invaild string.");
+      symxx_assert(pos < end,"Invaild string.");
       is_positive = true;
       if (s[0] == '+')
       {
@@ -694,7 +724,7 @@ namespace symxx
     
     Huge &operator/=(const Huge &h)
     {
-      if (h.digits.empty()) throw Error("Huge can not be divided by zero.");
+      symxx_assert(!h.digits.empty(), symxx_division_by_zero);
       is_positive = ((h.is_positive && is_positive) || (!h.is_positive && !is_positive));
       std::vector<digit> res;
       std::vector<digit> rem;
@@ -743,6 +773,7 @@ namespace symxx
   
     Huge &operator%=(const Huge &h)
     {
+      symxx_assert(!h.digits.empty(), symxx_division_by_zero);
       std::vector<digit> rem;
       huge_internal::digits_rem(digits, h.digits, rem);
       std::swap(rem, digits);
@@ -764,19 +795,32 @@ namespace symxx
       return Huge(ret);
     }
   
+    [[nodiscard]] Huge pow(const double &h) const
+    {
+      std::vector<digit> ret;
+      //huge_internal::digits_pow(digits, h, ret, is_positive, (h >= 0));
+      return Huge(ret);
+    }
     [[nodiscard]] Huge pow(const Huge &h) const
     {
       std::vector<digit> ret;
-      //huge_internal::digits_pow(digits, h.digits, ret);
+      //huge_internal::digits_pow(digits, h.digits,ret, is_positive, (h >= 0));
       return Huge(ret);
     }
-  
+    
+    Huge inverse() const
+    {
+    
+    }
     //
     [[nodiscard]] Huge abs() const
     {
       return Huge(digits, true);
     }
-  
+    [[nodiscard]] Huge negate() const
+    {
+      return Huge(digits, !is_positive);
+    }
     bool operator<(const Huge &h) const
     {
       return huge_internal::digits_cmp(digits, h.digits, is_positive, h.is_positive) < 0;
@@ -870,16 +914,28 @@ namespace symxx
     {
       return internal_to<U>(typename huge_internal::TagDispatch<std::decay_t<U>>::tag{});
     }
-
+    template<typename U>
+    [[nodiscard]] std::enable_if_t<std::is_arithmetic_v<std::decay_t<U>>, std::unique_ptr<U>>
+    try_to() const
+    {
+      U x;
+      try
+      {
+        x = internal_to<U>(typename huge_internal::TagDispatch<std::decay_t<U>>::tag{});
+      }
+      catch(...)
+      {
+        return nullptr;
+      }
+      return x;
+    }
   private:
     template<typename U>
     [[nodiscard]] U internal_to(huge_internal::IntTag) const
     {
       if (digits.empty()) return static_cast<U>(0);
-      if (!is_positive && std::is_unsigned_v<std::decay_t<U>>)
-      {
-        throw Error("The Huge is negative but U is unsigned.[" + to_string() + "].");
-      }
+      symxx_assert(is_positive || std::is_signed_v<std::decay_t<U>>,
+                   "The Huge is negative but U is unsigned.[" + to_string() + "].");
       if (digits.size() == 1
           && digits[0] <= std::numeric_limits<U>::max()
           && static_cast<sdigit>(digits[0]) >= std::numeric_limits<U>::lowest())
@@ -888,10 +944,8 @@ namespace symxx
       }
       else
       {
-        if ((digits.size() - 1) * SYMXX_HUGE_SHIFT > sizeof(U) * 8)
-        {
-          throw Error("The Huge is too big.[" + to_string() + "].");
-        }
+        symxx_assert((digits.size() - 1) * SYMXX_HUGE_SHIFT <= sizeof(U) * 8,
+                     "The Huge is too big.[" + to_string() + "].");
         U result = 0;
         for (auto rit = digits.crbegin(); rit < digits.crend(); ++rit)
         {
@@ -910,10 +964,8 @@ namespace symxx
     [[nodiscard]] U internal_to(huge_internal::FloatingTag) const
     {
       auto tmp = abs().to<unsigned long long>();
-      if (tmp > std::numeric_limits<U>::max())
-      {
-        throw Error("The Huge is too big.[" + to_string() + "].");
-      }
+      symxx_assert(tmp <= std::numeric_limits<U>::max(),
+      "The Huge is too big.[" + to_string() + "].");
       return static_cast<U>(tmp) * (is_positive ? 1 : -1);
     }
   };
@@ -926,10 +978,7 @@ namespace symxx
   
   std::tuple<Huge, Huge> divrem(const Huge &h1, const Huge &h2)
   {
-    if (h2.digits.size() == 0)
-    {
-      throw Error("Huge can not be divided by zero.");
-    }
+    symxx_assert(!h2.digits.empty(), symxx_division_by_zero);
     bool is_positive;
     is_positive = ((h1.is_positive && h2.is_positive) || (!h1.is_positive && !h2.is_positive));
     std::vector<digit> res;

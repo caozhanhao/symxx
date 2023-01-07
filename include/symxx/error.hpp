@@ -34,8 +34,33 @@ namespace symxx
   
     [[nodiscard]] std::string get_content() const
     {
-      return {"\033[1;37m" + location + ":" + "\033[0;32;31m error : \033[m" + detail};
+      return "\033[0;32;31mError: \033[1;37m" + location + ":\033[m " + detail;
+    }
+  
+    //For Unit Test
+    bool operator==(const Error &e) const
+    {
+      return detail == e.detail;
     }
   };
+  
+  auto symxx_unreachable(const std::string &detail_ = "", const std::experimental::source_location &l =
+  std::experimental::source_location::current())
+  {
+    throw Error("Unreachable code: " + detail_, l);
+  }
+  
+  constexpr auto symxx_division_by_zero = "Division by zero";
+  
+  void symxx_assert(bool b,
+                    const std::string &detail_ = "Assertion failed.",
+                    const std::experimental::source_location &l =
+                    std::experimental::source_location::current())
+  {
+    if (!b)
+    {
+      throw Error(detail_, l);
+    }
+  }
 }
 #endif

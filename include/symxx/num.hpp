@@ -71,10 +71,7 @@ namespace symxx
     Rational(U n, R d)
         : numerator(n), denominator(d)
     {
-      if (denominator == 0)
-      {
-        throw Error("denominator must not be 0.");
-      }
+      symxx_assert(denominator != 0, symxx_division_by_zero);
       reduce();
     }
   
@@ -84,7 +81,7 @@ namespace symxx
     Rational(U n)
         : numerator(n), denominator(1)
     {
-      if (denominator == 0) throw Error("denominator must not be 0.");
+      symxx_assert(denominator != 0, symxx_division_by_zero);
       reduce();
     }
   
@@ -149,8 +146,7 @@ namespace symxx
       {
         throw Error("The number is out of range.");
       }
-      if (denominator == 0)
-        throw Error("denominator must not be 0.");
+      symxx_assert(denominator != 0, symxx_division_by_zero);
     }
   
     Rational operator+(const Rational &i) const
@@ -164,8 +160,6 @@ namespace symxx
     {
       numerator = numerator * i.denominator + i.numerator * denominator;
       denominator *= i.denominator;
-      if (denominator == 0)
-        throw Error("denominator must not be 0.");
       reduce();
       return *this;
     }
@@ -194,8 +188,7 @@ namespace symxx
     {
       numerator *= i.numerator;
       denominator *= i.denominator;
-      if (denominator == 0)
-        throw Error("denominator must not be 0.");
+      symxx_assert(denominator != 0, symxx_division_by_zero);
       reduce();
       return *this;
     }
@@ -209,7 +202,7 @@ namespace symxx
   
     Rational &operator/=(const Rational &i)
     {
-      *this *= i.reciprocate();
+      *this *= i.inverse();
       reduce();
       return *this;
     }
@@ -221,10 +214,7 @@ namespace symxx
       Rational<T> res;
       res.numerator = static_cast<T>(Pow(numerator, p.template to<double>()));
       res.denominator = static_cast<T>(Pow(denominator, p.template to<double>()));
-      if (denominator == 0)
-      {
-        throw Error("denominator must not be 0.");
-      }
+      symxx_assert(denominator != 0, symxx_division_by_zero);
       res.reduce();
       return res;
     }
@@ -254,7 +244,7 @@ namespace symxx
       return Rational{-numerator, denominator};
     }
   
-    Rational reciprocate() const { return {denominator, numerator}; }
+    Rational inverse() const { return {denominator, numerator}; }
   
     void reduce()
     {
@@ -287,12 +277,11 @@ namespace symxx
     {
       if (denominator != 1)
       {
-        return "(" + To_String(numerator) + "/" + To_String(denominator) + ")";
+        return To_String(numerator) + "/" + To_String(denominator);
       }
       else
-      {
         return To_String(numerator);
-      }
+      symxx_unreachable();
       return "";
     }
   };
@@ -349,9 +338,6 @@ namespace symxx
   template<typename T>
   class Real
   {
-    template<typename U>
-    friend std::ostream &operator<<(std::ostream &os, const Real<U> &i);
-  
   private:
     using IndexT = Make_unsigned_t<T>;
     IndexT index;
@@ -429,7 +415,7 @@ namespace symxx
     
     Real &operator/=(const Real &r)
     {
-      *this *= r.reciprocate();
+      *this *= r.inverse();
       return *this;
     }
     
@@ -514,28 +500,24 @@ namespace symxx
       return coe == 0 || radicand == 1 || radicand == 0 || index == 1 || index == 0;
     }
   
-    Real reciprocate() const
+    Real inverse() const
     {
       auto p = *this;
-      p.coe = p.coe.reciprocate();
-      p.radicand = p.radicand.reciprocate();
+      p.coe = p.coe.inverse();
+      p.radicand = p.radicand.inverse();
       return p;
     }
   
     std::string to_string() const
     {
       if (coe == 0) return "0";
-      if (is_rational())
-      {
-        return coe.to_string();
-      }
-    
+      if (is_rational()) return coe.to_string();
+  
       std::string ret;
       if (coe != 1)
       {
-        ret += coe.to_string() + "(";
+        ret += coe.to_string();
       }
-    
       if (index != 2)
       {
         ret += "_" + To_String(index) + "_/" + radicand.to_string();
@@ -543,11 +525,6 @@ namespace symxx
       else
       {
         ret += "_/" + radicand.to_string();
-      }
-    
-      if (coe != 1)
-      {
-        ret += ")";
       }
       return ret;
     }
@@ -570,9 +547,7 @@ namespace symxx
     U internal_to(num_internal::RationalTag) const
     {
       if (!is_rational())
-      {
         throw Error("Must be a rational.");
-      }
       return coe * radicand;
     }
   };
@@ -585,10 +560,10 @@ namespace symxx
     return os;
   }
   
-  template<typename ReturnType, typename RadicandType>
-  Real<ReturnType> nth_root(Make_unsigned_t<RadicandType> n, RadicandType q)
+  template<typename T>
+  Real<T> nth_root(const Make_unsigned_t<T> &n, const Rational<T> &q)
   {
-    return Real<ReturnType>{1, q, n};
+    return Real<T>{1, q, n};
   }
 }
 #endif

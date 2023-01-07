@@ -24,10 +24,11 @@
 #include <experimental/source_location>
 
 #define _SYMXX_LAZY_EVAL(x) [=](){return (x);}
-#define SYMXX_EXPECT_EQ(msg, v1, v2) test::get_test().expected_eq((msg), _SYMXX_LAZY_EVAL((v1)), _SYMXX_LAZY_EVAL((v2)));
-#define SYMXX_EXPECT_TRUE(msg, v1) test::get_test().expected_eq((msg), _SYMXX_LAZY_EVAL((v1)), _SYMXX_LAZY_EVAL(true));
-#define SYMXX_EXPECT_FALSE(msg, v1) test::get_test().expected_eq((msg), _SYMXX_LAZY_EVAL((v1)), _SYMXX_LAZY_EVAL(false));
-#define SYMXX_EXPECT_SUCCESS(msg, f) test::get_test().expected_success((msg), f);
+#define SYMXX_EXPECT_EQ(msg, v1, v2) test::get_test().expect_eq((msg), _SYMXX_LAZY_EVAL((v1)), _SYMXX_LAZY_EVAL((v2)));
+#define SYMXX_EXPECT_TRUE(msg, v1) test::get_test().expect_eq((msg), _SYMXX_LAZY_EVAL((v1)), _SYMXX_LAZY_EVAL(true));
+#define SYMXX_EXPECT_FALSE(msg, v1) test::get_test().expect_eq((msg), _SYMXX_LAZY_EVAL((v1)), _SYMXX_LAZY_EVAL(false));
+#define SYMXX_EXPECT_SUCCESS(msg, f) test::get_test().expect_success((msg), f);
+#define SYMXX_EXPECT_EXCEPTION(msg, f, exception) test::get_test().expect_exception((msg), _SYMXX_LAZY_EVAL(f), (exception));
 #define SYMXX_MARK(msg) test::get_test().mark(msg);
 
 namespace symxx::test
@@ -175,11 +176,11 @@ namespace symxx::test
     {
       marks.emplace_back(std::make_pair(all_tests.size(), msg));
     }
-    
+  
     template<typename T1, typename T2>
-    void expected_eq(const std::string &msg, const T1 &t1, const T2 &t2,
-                     const std::experimental::source_location &l =
-                     std::experimental::source_location::current())
+    void expect_eq(const std::string &msg, const T1 &t1, const T2 &t2,
+                   const std::experimental::source_location &l =
+                   std::experimental::source_location::current())
     {
       all_tests.template emplace_back(
           [this, t1, t2, msg, pos = all_tests.size(),
@@ -191,8 +192,9 @@ namespace symxx::test
             auto v2 = t2();
             if (v1 != v2)
             {
-              results += ("[\033[0;32;31mFAILED\033[m] Test " + std::to_string(pos) + " in " + location
-                          + ": " + msg + "[" + to_str(v1) + "\033[0;32;31m != \033[m" + to_str(v2) + "].\n");
+              results += ("[\033[0;32;31mFAILED\033[m] Test " + std::to_string(pos) + " in \033[1;37m"
+                          + location + ":\033[m " + msg + "[" + to_str(v1) + "\033[0;32;31m != \033[m" + to_str(v2) +
+                          "].\n");
               failure.emplace_back(pos);
             }
             else
@@ -201,10 +203,11 @@ namespace symxx::test
             }
           });
     }
-    
-    void expected_success(const std::string &msg, std::function<std::tuple<int, std::string>()> func,
-                          const std::experimental::source_location &l =
-                          std::experimental::source_location::current())
+  
+    template<typename T>
+    void expect_success(const std::string &msg, const T &func,
+                        const std::experimental::source_location &l =
+                        std::experimental::source_location::current())
     {
       all_tests.template emplace_back(
           [this, func, msg, pos = all_tests.size(),
@@ -215,8 +218,8 @@ namespace symxx::test
             auto ret = func();
             if (std::get<0>(ret) != 0)
             {
-              results += ("[\033[0;32;31mFAILED\033[m] Test " + std::to_string(pos) + " in " + location
-                          + ": " + msg + "[Function Returns \033[0;32;31m"
+              results += ("[\033[0;32;31mFAILED\033[m] Test " + std::to_string(pos) + " in \033[1;37m"
+                          + location + ":\033[m " + msg + "[Function Returns \033[0;32;31m"
                           + std::to_string(std::get<0>(ret)) + "\033[m," + std::get<1>(ret) + "]\n");
               failure.emplace_back(pos);
             }
@@ -226,7 +229,43 @@ namespace symxx::test
             }
           });
     }
-    
+  
+    template<typename T1, typename T2>
+    void expect_exception(const std::string &msg, const T1 &func, const T2 &exception,
+                          const std::experimental::source_location &l =
+                          std::experimental::source_location::current())
+    {
+      all_tests.template emplace_back(
+          [this, func, exception, msg, pos = all_tests.size(),
+              location = std::string(l.file_name()) + ":"
+                         + std::to_string(l.line()) +
+                         ":" + l.function_name() + "()"]()
+          {
+            bool caught = false;
+            try
+            {
+              func();
+            }
+            catch (T2 &err)
+            {
+              if (err != exception)
+              {
+                throw err;
+              }
+              else
+              {
+                ++success;
+                caught = true;
+              }
+            }
+            if (!caught)
+            {
+              results += ("[\033[0;32;31mFAILED\033[m] Test " + std::to_string(pos) + " in \033[1;37m"
+                          + location + ":\033[m " + msg + "[Exception not captured]");
+            }
+          });
+    }
+  
     void run_tests()
     {
       SYMXX_MARK("END");
@@ -292,7 +331,8 @@ namespace symxx::test
       std::cout << ("(" + ::symxx::dtoa(time * 0.000001) + " s)\n");
       if (!exceptions.empty())
       {
-        std::cout << "[\033[0;32;33mDETAIL\033[m]" << (std::to_string(exceptions.size()) + " exceptions at[");
+        std::cout << "[\033[0;32;33mDETAIL\033[m] "
+                  << (std::to_string(exceptions.size()) + " unexpected exception(s) at[");
         std::string str;
         for (auto &r: exceptions)
         {
@@ -303,7 +343,7 @@ namespace symxx::test
       }
       if (!failure.empty())
       {
-        std::cout << "[\033[0;32;33mDETAIL\033[m]" << (std::to_string(failure.size()) + " failure at[");
+        std::cout << "[\033[0;32;33mDETAIL\033[m] " << (std::to_string(failure.size()) + " failure at[");
         std::string str;
         for (auto &r: failure)
         {
