@@ -22,7 +22,7 @@
 #include <string>
 #include <tuple>
 #include <cstdint>
-#include <numeric>
+#include <numbers>
 
 #if defined(SYMXX_ENABLE_HUGE)
 using IntType = symxx::Huge;
