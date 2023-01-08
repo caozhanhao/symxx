@@ -22,6 +22,7 @@
 #include <string>
 #include <tuple>
 #include <cstdint>
+#include <numeric>
 
 #if defined(SYMXX_ENABLE_HUGE)
 using IntType = symxx::Huge;
@@ -57,10 +58,30 @@ void print_result(const ExprNode<IntType> &expr)
     if (fp->is_rational() && fp->template to<Rational<IntType>>().is_int())
     {
       std::cout << *fp << std::endl;
+      return;
     }
     else
     {
-      std::cout << expr << " = " << ::symxx::dtoa(fp->template to<double>()) << std::endl;
+      auto real = fp->try_eval();
+      if (real == nullptr)
+      {
+        std::cout << expr << std::endl;
+        return;
+      }
+      else
+      {
+        auto d = real->template try_to<double>();
+        if (d == nullptr)
+        {
+          std::cout << expr << std::endl;
+          return;
+        }
+        else
+        {
+          std::cout << expr << " = " << ::symxx::dtoa(*d) << std::endl;
+          return;
+        }
+      }
     }
     return;
   }
@@ -73,7 +94,7 @@ void print_var(const std::string &name, const Real<IntType> &var)
   print_result(Frac<IntType>{var});
 }
 
-void cmd_reduce(const std::string &body, const std::map<std::string, Real<IntType>> &vars)
+void cmd_normalize(const std::string &body, const std::map<std::string, Real<IntType>> &vars)
 {
   ExprParser<IntType> p{body};
   auto a = p.parse();
@@ -131,7 +152,7 @@ cmd_func(const std::string &body, std::map<std::string, std::tuple<std::vector<s
   }
   ExprParser<IntType> p{body.substr(i + 1)};
   auto func = p.parse();
-  func.reduce();
+  func.normalize();
   std::string argstr;
   for (auto &a: args)
   {
@@ -267,8 +288,8 @@ int main()
   std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
   std::map<std::string, Real<IntType>> vars
       {
-          {"pi", Rational<IntType>{157, 50}},
-          {"e",  Rational<IntType>{271, 100}}
+          {"pi", Rational<IntType>(std::numbers::pi_v<double>)},
+          {"e",  std::numbers::e_v<double>}
       };
   cmd_version();
   std::string str, cmd, body;
@@ -289,7 +310,7 @@ int main()
         cmd = str;
         body = "";
       }
-      if (cmd == "reduce") { cmd_reduce(body, vars); }
+      if (cmd == "normalize") { cmd_normalize(body, vars); }
       else if (cmd == "func") { cmd_func(body, funcs); }
       else if (cmd == "var") { cmd_var(body, vars); }
       else if (cmd == "print") { cmd_print(body, funcs, vars); }
@@ -301,13 +322,13 @@ int main()
         auto rp = cmd.find_first_of(")", lp);
         if (lp == std::string::npos || rp == std::string::npos)
         {
-          cmd_reduce(cmd, vars);
+          cmd_normalize(cmd, vars);
           continue;
         }
         auto it = funcs.find(cmd.substr(0, lp));
         if (it == funcs.end())
         {
-          cmd_reduce(cmd, vars);
+          cmd_normalize(cmd, vars);
           continue;
         }
         else

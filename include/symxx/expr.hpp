@@ -99,7 +99,7 @@ namespace symxx
       auto &data = opdata();
       data.lhs->set_env(e);
       data.rhs->set_env(e);
-      reduce();
+      normalize();
     }
     
     std::unique_ptr<Frac<T>> try_eval() const
@@ -137,18 +137,24 @@ namespace symxx
       }
       return nullptr;
     }
-    
-    void reduce()
+  
+    void normalize()
     {
       if (node_type == NodeType::FRAC)
+      {
         return;
+      }
       auto &data = opdata();
       auto lhsv = data.lhs->try_eval();
       auto rhsv = data.rhs->try_eval();
       if (lhsv == nullptr)
-        data.lhs->reduce();
+      {
+        data.lhs->normalize();
+      }
       if (rhsv == nullptr)
-        data.rhs->reduce();
+      {
+        data.rhs->normalize();
+      }
       if (lhsv == nullptr || rhsv == nullptr)
         return;
       switch (data.op)
@@ -170,7 +176,7 @@ namespace symxx
           auto power = rhsv->try_eval();
           if (power == nullptr || !power->is_rational())
           {
-            data.lhs->reduce();
+            data.lhs->normalize();
             return;
           }
           val = lhsv->pow(power->template to<Rational<T>>());

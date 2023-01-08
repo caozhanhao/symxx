@@ -112,7 +112,6 @@ namespace symxx
   }
 #endif
 #if defined(SYMXX_ENABLE_INT128)
-  
   template<>
   class Make_unsigned<__int128_t>
   {
@@ -169,6 +168,28 @@ namespace symxx
   inline auto Abs(const Make_unsigned_t<__int128_t> &num)
   {
     return num;
+  }
+  
+  inline __int128_t To_int128(const std::string &s)
+  {
+    __int128_t m = 0;
+    for (size_t i = 0; i < s.size(); i++)
+    {
+      m *= 10;
+      m += s[i] - 48;
+    }
+    return m;
+  }
+  
+  inline __uint128_t To_uint128(const std::string &s)
+  {
+    __uint128_t m = 0;
+    for (size_t i = 0; i < s.size(); i++)
+    {
+      m *= 10;
+      m += s[i] - 48;
+    }
+    return m;
   }
 
 #endif

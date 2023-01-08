@@ -23,6 +23,7 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <memory>
 namespace symxx
 {
   template<typename T>
@@ -72,7 +73,7 @@ namespace symxx
         : numerator(n), denominator(d)
     {
       symxx_assert(denominator != 0, symxx_division_by_zero);
-      reduce();
+      normalize();
     }
   
     template<typename U, typename = std::enable_if_t<
@@ -82,11 +83,15 @@ namespace symxx
         : numerator(n), denominator(1)
     {
       symxx_assert(denominator != 0, symxx_division_by_zero);
-      reduce();
+      normalize();
     }
   
     Rational()
         : numerator(0), denominator(1)
+    {
+    }
+  
+    Rational(double x) : Rational(static_cast<long double>(x))
     {
     }
   
@@ -109,10 +114,11 @@ namespace symxx
       }
       else
       {
-        denominator = static_cast<T>(std::pow(10, ndigits));
-        numerator = denominator * x;
+        auto tmp = Pow<unsigned long long>(10, ndigits);
+        denominator = static_cast<T>(tmp);
+        numerator = x * tmp;
       }
-      reduce();
+      normalize();
     }
   
     Rational(const std::string &n)
@@ -160,7 +166,7 @@ namespace symxx
     {
       numerator = numerator * i.denominator + i.numerator * denominator;
       denominator *= i.denominator;
-      reduce();
+      normalize();
       return *this;
     }
   
@@ -189,7 +195,7 @@ namespace symxx
       numerator *= i.numerator;
       denominator *= i.denominator;
       symxx_assert(denominator != 0, symxx_division_by_zero);
-      reduce();
+      normalize();
       return *this;
     }
   
@@ -203,7 +209,7 @@ namespace symxx
     Rational &operator/=(const Rational &i)
     {
       *this *= i.inverse();
-      reduce();
+      normalize();
       return *this;
     }
   
@@ -215,7 +221,7 @@ namespace symxx
       res.numerator = static_cast<T>(Pow(numerator, p.template to<double>()));
       res.denominator = static_cast<T>(Pow(denominator, p.template to<double>()));
       symxx_assert(denominator != 0, symxx_division_by_zero);
-      res.reduce();
+      res.normalize();
       return res;
     }
   
@@ -246,7 +252,7 @@ namespace symxx
   
     Rational inverse() const { return {denominator, numerator}; }
   
-    void reduce()
+    void normalize()
     {
       T g = ::symxx::Gcd(::symxx::Abs(numerator), ::symxx::Abs(denominator));
       numerator /= g;
@@ -266,6 +272,21 @@ namespace symxx
     U to() const
     {
       return static_cast<U>(numerator) / static_cast<U>(denominator);
+    }
+  
+    template<typename U>
+    std::unique_ptr<U> try_to() const
+    {
+      try
+      {
+        return std::make_unique<U>(static_cast<U>(numerator) / static_cast<U>(denominator));
+      }
+      catch (...)
+      {
+        return nullptr;
+      }
+      symxx_unreachable();
+      return nullptr;
     }
   
     T to_t() const
@@ -295,7 +316,7 @@ namespace symxx
   }
   
   template<typename T>
-  void radical_reduce(T &num, Make_unsigned_t<T> &index, Rational<T> &coe, bool is_numerator)
+  void radical_reduce(T &num, Make_unsigned_t<T> &index, Rational<T> &coe)
   {
     //unfinished
     for (T i = 2; i < num && num > 1; i++)
@@ -306,14 +327,7 @@ namespace symxx
       if (k == 0 || k == 1) continue;
       if (k >= index)
       {
-        if (is_numerator)
-        {
-          coe *= static_cast<T>(Pow(i, k / index));
-        }
-        else
-        {
-          coe /= static_cast<T>(Pow(i, k / index));
-        }
+        coe *= static_cast<T>(Pow(i, k / index));
         num /= Pow(i, k - k % index);
       }
       else if (n == 1)
@@ -346,13 +360,13 @@ namespace symxx
   
   public:
     Real(Rational<T> c, Rational<T> r = 1, IndexT i = 1)
-        : index(i), radicand(std::move(r)), coe(std::move(c)) { reduce(); }
-    
+        : index(i), radicand(std::move(r)), coe(std::move(c)) { normalize(); }
+  
     template<typename U, typename = std::enable_if_t<
         std::is_arithmetic_v<std::decay_t<U>>
         || std::is_same_v<std::decay_t<U>, T>>>
     Real(U c)
-        : index(1), radicand(1), coe(c) { reduce(); }
+        : index(1), radicand(1), coe(c) { normalize(); }
     
     Real() : index(1), radicand(1), coe(0) {}
     
@@ -372,7 +386,7 @@ namespace symxx
       if (!is_equivalent_with(r))
         throw Error("radicand and index must be the same.");
       coe += r.coe;
-      reduce();
+      normalize();
       return *this;
     }
     
@@ -386,7 +400,7 @@ namespace symxx
     Real &operator-=(const Real &r)
     {
       *this += r.negate();
-      reduce();
+      normalize();
       return *this;
     }
     
@@ -402,7 +416,7 @@ namespace symxx
       radicand = radicand.pow(r.index) * r.radicand.pow(index);
       index *= r.index;
       coe *= r.coe;
-      reduce();
+      normalize();
       return *this;
     }
     
@@ -446,7 +460,7 @@ namespace symxx
         res.coe = 1;
         res *= Real<T>{Rational<T>{1}, cb, static_cast<IndexT>(p.get_denominator())};
       }
-      res.reduce();
+      res.normalize();
       return res;
     }
     
@@ -476,8 +490,8 @@ namespace symxx
     {
       return !(*this < r || *this == r);
     }
-    
-    void reduce()
+  
+    void normalize()
     {
       if (!radicand.is_int())
       {
@@ -485,12 +499,9 @@ namespace symxx
         radicand *= Pow(radicand.get_denominator(), index);
       }
       T num = radicand.get_numerator();
-      radical_reduce(num, index, coe, true);
+      radical_reduce(num, index, coe);
       radicand = {num, 1};
-      if (radicand == 1)
-      {
-        index = 1;
-      }
+      if (radicand == 1) index = 1;
     }
   
     Real negate() const { return {coe.negate(), radicand, index}; }
@@ -534,6 +545,12 @@ namespace symxx
     {
       return internal_to<U>(typename num_internal::TagDispatch<T, U>::tag{});
     }
+  
+    template<typename U>
+    std::unique_ptr<U> try_to() const
+    {
+      return internal_try_to<U>(typename num_internal::TagDispatch<T, U>::tag{});
+    }
 
   private:
     template<typename U>
@@ -542,12 +559,35 @@ namespace symxx
       return coe.template to<U>() *
              static_cast<U>(Pow(radicand.template to<double>(), 1.0 / static_cast<double>(index)));
     }
-    
+  
     template<typename U>
     U internal_to(num_internal::RationalTag) const
     {
-      if (!is_rational())
-        throw Error("Must be a rational.");
+      symxx_assert(is_rational(), "Must be a rational.");
+      return coe * radicand;
+    }
+  
+    template<typename U>
+    std::unique_ptr<U> internal_try_to(num_internal::NormalTag) const
+    {
+      try
+      {
+        return std::make_unique<U>(coe.template to<U>() *
+                                   static_cast<U>(Pow(radicand.template to<double>(),
+                                                      1.0 / static_cast<double>(index))));
+      }
+      catch (...)
+      {
+        return nullptr;
+      }
+      symxx_unreachable();
+      return nullptr;
+    }
+  
+    template<typename U>
+    U internal_try_to(num_internal::RationalTag) const
+    {
+      symxx_assert(is_rational(), "Must be a rational.");
       return coe * radicand;
     }
   };

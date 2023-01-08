@@ -45,13 +45,13 @@ namespace symxx
   
     coe (std::move(c)), symbols(std::move(u)), env(e)
     {
-      reduce();
+      normalize();
     }
   
     Term(Real <T> c, const std::string &sym)
         : coe(std::move(c)), symbols({{sym, 1}}), env(nullptr)
     {
-      reduce();
+      normalize();
     }
   
     Term(const Term &t)
@@ -61,7 +61,7 @@ namespace symxx
       {
         env = t.env;
       }
-      reduce();
+      normalize();
     }
   
     void set_env(Environment<T> e) { env = e; }
@@ -113,7 +113,7 @@ namespace symxx
         }
       }
       coe *= t.coe;
-      reduce();
+      normalize();
       return *this;
     }
   
@@ -127,7 +127,7 @@ namespace symxx
     Term &operator/=(const Real <T> &t)
     {
       coe /= t;
-      reduce();
+      normalize();
       return *this;
     }
   
@@ -146,7 +146,7 @@ namespace symxx
       {
         r.second *= t;
       }
-      res.reduce();
+      res.normalize();
       return res;
     }
   
@@ -218,15 +218,19 @@ namespace symxx
       }
       return a;
     }
-    
-    void reduce()
+  
+    void normalize()
     {
       for (auto it = symbols.begin(); it != symbols.end();)
       {
         if (it->second == 0)
+        {
           it = symbols.erase(it);
+        }
         else
+        {
           ++it;
+        }
       }
     }
   
@@ -324,19 +328,19 @@ namespace symxx
     Poly(std::initializer_list<Term<T>> p)
         : poly(p)
     {
-      reduce();
+      normalize();
     }
   
     Poly(std::vector<Term<T>> p)
         : poly(std::move(p))
     {
-      reduce();
+      normalize();
     }
   
     Poly &operator+=(const Poly &i)
     {
       poly.insert(poly.end(), i.poly.cbegin(), i.poly.cend());
-      reduce();
+      normalize();
       return *this;
     }
   
@@ -354,7 +358,7 @@ namespace symxx
     Poly &operator-=(const Poly &i)
     {
       *this += i.negate();
-      reduce();
+      normalize();
       return *this;
     }
     
@@ -380,7 +384,7 @@ namespace symxx
         }
       }
       poly = tmp;
-      reduce();
+      normalize();
       return *this;
     }
   
@@ -401,7 +405,7 @@ namespace symxx
       {
         r /= i;
       }
-      reduce();
+      normalize();
       return *this;
     }
   
@@ -538,8 +542,8 @@ namespace symxx
         r.set_env(e);
       }
     }
-    
-    void reduce()
+  
+    void normalize()
     {
       std::sort(poly.begin(), poly.end());
       for (auto it = poly.begin(); it < poly.end();)
@@ -624,26 +628,26 @@ namespace symxx
     Frac(const Real <T> &n, Environment<T> e = nullptr)
         : numerator({Term<T>{n}}), denominator({Term<T>{1}}), env(e)
     {
-      reduce();
+      normalize();
     }
     
     Frac(const Term<T> &n, Environment<T> e = nullptr)
         : numerator({n}), denominator({Term<T>{1}}), env(e)
     {
-      reduce();
+      normalize();
     }
     
     Frac(const Poly<T> &n, Environment<T> e = nullptr)
         : numerator(n), denominator({Term<T>{1}}), env(e)
     {
-      reduce();
+      normalize();
     }
     
     Frac(const Poly<T> &n, const Poly<T> &d, Environment<T> e = nullptr)
         : numerator(n), denominator(d), env(e)
     {
       symxx_assert(!denominator.is_zero(), symxx_division_by_zero);
-      reduce();
+      normalize();
     }
     
     Frac(const Frac &t)
@@ -665,7 +669,7 @@ namespace symxx
         denominator *= t.denominator;
         numerator = numerator * t.denominator + t.numerator * denominator;
       }
-      reduce();
+      normalize();
       return *this;
     }
     
@@ -683,7 +687,7 @@ namespace symxx
     Frac &operator-=(const Frac &t)
     {
       *this += t.negate();
-      reduce();
+      normalize();
       return *this;
     }
     
@@ -703,7 +707,7 @@ namespace symxx
       numerator *= t.numerator;
       denominator *= t.denominator;
       symxx_assert(!denominator.is_zero(), symxx_division_by_zero);
-      reduce();
+      normalize();
       return *this;
     }
     
@@ -722,7 +726,7 @@ namespace symxx
     {
       numerator *= t.denominator;
       denominator *= t.numerator;
-      reduce();
+      normalize();
       return *this;
     }
   
@@ -741,7 +745,7 @@ namespace symxx
       auto c = *this;
       c.numerator = numerator.pow(i);
       c.denominator = denominator.pow(i);
-      c.reduce();
+      c.normalize();
       return c;
     }
   
@@ -750,7 +754,7 @@ namespace symxx
       env = val;
       numerator.set_env(val);
       denominator.set_env(val);
-      reduce();
+      normalize();
       symxx_assert(!denominator.is_zero(), symxx_division_by_zero);
     }
   
@@ -787,10 +791,10 @@ namespace symxx
       (*np / *dp);
     }
   
-    void reduce()
+    void normalize()
     {
-      numerator.reduce();
-      denominator.reduce();
+      numerator.normalize();
+      denominator.normalize();
       T den = 1;
       for (auto &r: denominator.get_poly())
       {
