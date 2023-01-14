@@ -33,39 +33,47 @@ namespace symxx
   private:
     Real <T> coe;
     std::map<std::string, Rational < T>> symbols;
-    Environment<T> env;
-
+  
   public:
     Term(Real <T> c, std::map<std::string, Rational < T>>
-  
-    u = {},
-    Environment<T> e = nullptr
-    )
+    
+    u)
     :
-  
-    coe (std::move(c)), symbols(std::move(u)), env(e)
+    
+    coe (std::move(c)), symbols(std::move(u))
     {
       normalize();
     }
-  
-    Term(Real <T> c, const std::string &sym)
-        : coe(std::move(c)), symbols({{sym, 1}}), env(nullptr)
-    {
-      normalize();
-    }
-  
+    
+    Term(Real <T> c, std::string u)
+        : coe(std::move(c)), symbols({{std::move(u), 1}}) {}
+    
+    Term(Real <T> c)
+        : coe(std::move(c)) {}
+    
     Term(const Term &t)
-        : coe(t.coe), symbols(t.symbols)
+        : coe(t.coe), symbols(t.symbols) {}
+    
+    void substitute(Environment<T> e)
     {
-      if (t.env != nullptr)
+      for (auto &r: symbols)
       {
-        env = t.env;
+        auto it = e->find(r.first);
+        if (it != e->end())
+        {
+          coe *= (it->second.pow(r.second));
+        }
       }
-      normalize();
+      for (auto &r: *e)
+      {
+        auto it = symbols.find(r.first);
+        if (it != symbols.end())
+        {
+          symbols.erase(it);
+        }
+      }
     }
-  
-    void set_env(Environment<T> e) { env = e; }
-  
+    
     bool operator<(const Term &t) const
     {
       auto a = get_symbols();
@@ -104,13 +112,9 @@ namespace symxx
       {
         auto it = symbols.find(r.first);
         if (it == symbols.end())
-        {
           symbols.insert(r);
-        }
         else
-        {
           it->second += r.second;
-        }
       }
       coe *= t.coe;
       normalize();
@@ -150,7 +154,10 @@ namespace symxx
       return res;
     }
   
-    Term negate() const { return {coe.negate(), symbols, env}; }
+    Term negate() const
+    {
+      return {coe.negate(), symbols};
+    }
   
     template<typename U>
     U to() const
@@ -165,12 +172,26 @@ namespace symxx
       return get_coe();
     }
   
+    std::unique_ptr<long double> try_eval(const std::map<std::string, long double> &v) const
+    {
+      long double result = coe.template to<long double>();
+      for (auto &r: symbols)
+      {
+        if (auto it = v.find(r.first); it != v.end())
+        {
+          result *= std::pow(it->second, r.second.template to<long double>());
+        }
+        else
+        {
+          return nullptr;
+        }
+      }
+      return std::make_unique<long double>(result);
+    }
+  
     std::unique_ptr<Real < T>> try_eval() const
     {
-      if (!no_symbols())
-      {
-        return nullptr;
-      }
+      if (!no_symbols()) return nullptr;
       return std::make_unique<Real < T>>
       (get_coe());
     }
@@ -181,42 +202,15 @@ namespace symxx
     {
       return (get_symbols() == t.get_symbols()) && (get_coe().is_equivalent_with(t.get_coe()));
     }
-    
-    auto get_env() const
+  
+    auto &get_coe() const
     {
-      return env;
+      return coe;
     }
     
-    auto get_coe() const
+    auto &get_symbols() const
     {
-      if (env == nullptr)
-        return coe;
-      auto a = coe;
-      for (auto &r: symbols)
-      {
-        auto it = env->find(r.first);
-        if (it != env->end())
-        {
-          a *= (it->second.pow(r.second));
-        }
-      }
-      return a;
-    }
-    
-    auto get_symbols() const
-    {
-      if (env == nullptr)
-        return symbols;
-      auto a = symbols;
-      for (auto &r: *env)
-      {
-        auto it = a.find(r.first);
-        if (it != a.end())
-        {
-          a.erase(it);
-        }
-      }
-      return a;
+      return symbols;
     }
   
     void normalize()
@@ -224,13 +218,9 @@ namespace symxx
       for (auto it = symbols.begin(); it != symbols.end();)
       {
         if (it->second == 0)
-        {
           it = symbols.erase(it);
-        }
         else
-        {
           ++it;
-        }
       }
     }
   
@@ -262,9 +252,7 @@ namespace symxx
       {
         auto exp = it->second;
         if (exp != 1)
-        {
           ret += "(" + it->first + "**" + exp.to_string() + ")";
-        }
         else
         {
           if (it->first.size() != 1)
@@ -482,6 +470,23 @@ namespace symxx
       return result;
     }
   
+    std::unique_ptr<long double> try_eval(const std::map<std::string, long double> &v) const
+    {
+      long double result = 0;
+      for (auto &r: poly)
+      {
+        if (auto rp = r.try_eval(v); rp != nullptr)
+        {
+          result += *rp;
+        }
+        else
+        {
+          return nullptr;
+        }
+      }
+      return std::make_unique<long double>(result);
+    }
+  
     std::unique_ptr<Real < T>> try_eval() const
     {
       std::unique_ptr<Real < T>>
@@ -534,12 +539,12 @@ namespace symxx
     {
       return poly == p.poly;
     }
-    
-    void set_env(Environment<T> e)
+  
+    void substitute(Environment<T> e)
     {
       for (auto &r: poly)
       {
-        r.set_env(e);
+        r.substitute(e);
       }
     }
   
@@ -550,7 +555,7 @@ namespace symxx
       {
         if ((it + 1) < poly.end() && it->is_equivalent_with(*(it + 1)))
         {
-          *it = {it->get_coe() + (it + 1)->get_coe(), it->get_symbols(), it->get_env()};
+          *it = {it->get_coe() + (it + 1)->get_coe(), it->get_symbols()};
           it = poly.erase(it + 1);
           --it;
         }
@@ -622,41 +627,42 @@ namespace symxx
   private:
     Poly<T> numerator;
     Poly<T> denominator;
-    Environment<T> env;
-  
+
   public:
-    Frac(const Real <T> &n, Environment<T> e = nullptr)
-        : numerator({Term<T>{n}}), denominator({Term<T>{1}}), env(e)
+    Frac(const Real <T> &n)
+        : numerator({Term<T>{n}}), denominator({Term<T>{1}})
     {
       normalize();
     }
-    
-    Frac(const Term<T> &n, Environment<T> e = nullptr)
-        : numerator({n}), denominator({Term<T>{1}}), env(e)
+  
+    Frac(const Term<T> &n)
+        : numerator({n}), denominator({Term<T>{1}})
     {
       normalize();
     }
-    
-    Frac(const Poly<T> &n, Environment<T> e = nullptr)
-        : numerator(n), denominator({Term<T>{1}}), env(e)
+  
+    Frac(const Poly<T> &n)
+        : numerator(n), denominator({Term<T>{1}})
     {
       normalize();
     }
-    
-    Frac(const Poly<T> &n, const Poly<T> &d, Environment<T> e = nullptr)
-        : numerator(n), denominator(d), env(e)
+  
+    Frac(const Poly<T> &n, const Poly<T> &d)
+        : numerator(n), denominator(d)
     {
       symxx_assert(!denominator.is_zero(), symxx_division_by_zero);
       normalize();
     }
-    
+  
     Frac(const Frac &t)
         : numerator(t.numerator), denominator(t.denominator)
     {
-      if (t.env != nullptr)
-        env = t.env;
     }
-    
+  
+    auto &get_numerator() const { return numerator; }
+  
+    auto &get_denominator() const { return denominator; }
+  
     Frac &operator+=(const Frac &t)
     {
       if (denominator == t.denominator)
@@ -666,8 +672,8 @@ namespace symxx
       }
       else
       {
-        denominator *= t.denominator;
         numerator = numerator * t.denominator + t.numerator * denominator;
+        denominator *= t.denominator;
       }
       normalize();
       return *this;
@@ -675,10 +681,6 @@ namespace symxx
     
     Frac operator+(const Frac &t) const
     {
-      if (auto a = try_eval(), b = t.try_eval();a != nullptr && b != nullptr)
-      {
-        return {*a + *b, env};
-      }
       auto c = *this;
       c += t;
       return c;
@@ -693,30 +695,19 @@ namespace symxx
     
     Frac operator-(const Frac &t) const
     {
-      if (auto a = try_eval(), b = t.try_eval();a != nullptr && b != nullptr)
-      {
-        return {*a - *b, env};
-      }
-      auto c = *this;
-      c -= t;
-      return c;
+      return *this + t.negate();
     }
     
     Frac &operator*=(const Frac &t)
     {
       numerator *= t.numerator;
       denominator *= t.denominator;
-      symxx_assert(!denominator.is_zero(), symxx_division_by_zero);
       normalize();
       return *this;
     }
     
     Frac operator*(const Frac &t) const
     {
-      if (auto a = try_eval(), b = t.try_eval();a != nullptr && b != nullptr)
-      {
-        return {*a * *b, env};
-      }
       auto c = *this;
       c *= t;
       return c;
@@ -724,6 +715,7 @@ namespace symxx
     
     Frac &operator/=(const Frac &t)
     {
+      symxx_assert(!t.numerator.is_zero(), symxx_division_by_zero);
       numerator *= t.denominator;
       denominator *= t.numerator;
       normalize();
@@ -732,7 +724,6 @@ namespace symxx
   
     Frac operator/(const Frac &t) const
     {
-      if (auto a = try_eval(), b = t.try_eval();a != nullptr && b != nullptr) return {*a / *b, env};
       auto c = *this;
       c /= t;
       return c;
@@ -741,7 +732,7 @@ namespace symxx
   
     Frac pow(const Rational <T> &i) const
     {
-      if (auto a = try_eval();a != nullptr) return {a->pow(i), env};
+      if (auto a = try_eval();a != nullptr) return {a->pow(i)};
       auto c = *this;
       c.numerator = numerator.pow(i);
       c.denominator = denominator.pow(i);
@@ -749,11 +740,10 @@ namespace symxx
       return c;
     }
   
-    void set_env(Environment<T> val)
+    void substitute(Environment<T> val)
     {
-      env = val;
-      numerator.set_env(val);
-      denominator.set_env(val);
+      numerator.substitute(val);
+      denominator.substitute(val);
       normalize();
       symxx_assert(!denominator.is_zero(), symxx_division_by_zero);
     }
@@ -791,24 +781,37 @@ namespace symxx
       (*np / *dp);
     }
   
+    std::unique_ptr<long double> try_eval(const std::map<std::string, long double> &v) const
+    {
+      if (auto np = numerator.try_eval(v), dp = denominator.try_eval(v); np != nullptr && dp != nullptr)
+      {
+        return std::make_unique<long double>(*np / *dp);
+      }
+      return nullptr;
+    }
+  
     void normalize()
     {
       numerator.normalize();
       denominator.normalize();
-      T den = 1;
+      T mult = 1;
       for (auto &r: denominator.get_poly())
       {
-        den *= r.get_coe().get_coe().get_denominator();
+        mult *= r.get_coe().get_coe().get_denominator();
       }
       for (auto &r: numerator.get_poly())
       {
-        r *= Term<T>{den, {}, env};
+        mult *= r.get_coe().get_coe().get_denominator();
+      }
+      for (auto &r: numerator.get_poly())
+      {
+        r *= Term < T > {mult};
       }
       for (auto &r: denominator.get_poly())
       {
-        r *= Term<T>{den, {}, env};
+        r *= Term < T > {mult};
       }
-  
+    
       T g = Gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
                 denominator.get_poly()[0].get_coe().get_coe().to_t());
       for (auto &n: numerator.get_poly())
@@ -829,25 +832,53 @@ namespace symxx
       numerator /= g;
       denominator /= g;
     }
-    
+  
     Frac negate() const
     {
-      auto a = numerator.negate();
-      return {a, denominator, env};
+      return {numerator.negate(), denominator};
     }
   
-    Frac inverse() const { return {denominator, numerator, env}; }
-    
+    Frac inverse() const { return {denominator, numerator}; }
+  
+    bool output_need_paren() const
+    {
+      if (denominator.get_poly().size() == 1 && denominator.get_poly()[0].get_coe() == 1
+          && denominator.get_poly()[0].no_symbols())
+      {
+        return false;
+      }
+      return true;
+    }
+  
     std::string to_string() const
     {
       if (numerator.get_poly().empty()) return "0";
-      std::string ret;
       if (denominator.get_poly().size() == 1 && denominator.get_poly()[0].get_coe() == 1
           && denominator.get_poly()[0].no_symbols())
       {
         return numerator.to_string();
       }
-      return numerator.to_string() + "/" + denominator.to_string();
+      std::string ret;
+      if (numerator.get_poly().size() != 1)
+      {
+        ret += "(";
+      }
+      ret += numerator.to_string();
+      if (numerator.get_poly().size() != 1)
+      {
+        ret += ")";
+      }
+      ret += "/";
+      if (denominator.get_poly().size() != 1)
+      {
+        ret += "(";
+      }
+      ret += denominator.to_string();
+      if (denominator.get_poly().size() != 1)
+      {
+        ret += ")";
+      }
+      return ret;
     }
   };
   

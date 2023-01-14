@@ -140,8 +140,10 @@ namespace symxx
     if(num < 0) sz++;
     ret.resize(sz);
     auto rit = ret.rbegin();
-    for (auto rem = num; rem > 0; rem /= 10)
+    for (auto rem = Abs(num); rem > 0; rem /= 10)
+    {
       *rit++ = '0' + static_cast<int>(rem % 10);
+    }
     if(num < 0) ret[0] = '-';
     if(*ret.begin() == '\0') ret.erase(ret.begin());
     return ret;
@@ -190,6 +192,12 @@ namespace symxx
       m += s[i] - 48;
     }
     return m;
+  }
+  
+  template<>
+  inline __int128_t To_int(const std::string &num)
+  {
+    return To_int128(num);
   }
 
 #endif

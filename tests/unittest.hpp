@@ -26,9 +26,9 @@
 #define _SYMXX_STRINGFY(x) #x
 #define SYMXX_STRINGFY(x) _SYMXX_STRINGFY(x)
 
-#define SYMXX_EXPECT_EQ(v1, v2) ::symxx::test::get_test().expect_eq(v1, v2);
-#define SYMXX_EXPECT_TRUE(v1) ::symxx::test::get_test().expect_eq(v1, true);
-#define SYMXX_EXPECT_FALSE(v1) ::symxx::test::get_test().expect_eq(v1, false);
+#define SYMXX_EXPECT_EQ(v1, v2) try{::symxx::test::get_test().expect_eq(v1, v2);} catch(Error& e){throw UnitTestError(e);}
+#define SYMXX_EXPECT_TRUE(v1) try{::symxx::test::get_test().expect_eq(v1, true);} catch(Error& e){throw UnitTestError(e);}
+#define SYMXX_EXPECT_FALSE(v1) try{::symxx::test::get_test().expect_eq(v1, false);} catch(Error& e){throw UnitTestError(e);}
 #define SYMXX_TEST(name) \
 void symxx_test_##name(); \
 int symxx_test_pos_##name = ::symxx::test::get_test().add(SYMXX_STRINGFY(name), symxx_test_##name); \
@@ -36,6 +36,16 @@ void symxx_test_##name()
 
 namespace symxx::test
 {
+  class UnitTestError : public Error
+  {
+  public:
+    std::string test_location;
+    
+    UnitTestError(const Error &err, const std::experimental::source_location &l =
+    std::experimental::source_location::current())
+        : Error(err), test_location(location_to_str(l)) {}
+  };
+  
   class Test;
   
   Test &get_test();
@@ -166,40 +176,43 @@ namespace symxx::test
         failure.emplace_back(curr_test);
       }
     }
-    
+  
     template<typename T>
-    int add(const std::string &name, const T &func)
+    int add(const std::string &name, const T &func, const std::experimental::source_location &l =
+    std::experimental::source_location::current())
     {
       all_tests.template emplace_back(std::make_pair(name, func));
       return all_tests.size() - 1;
     }
-    
-    template<typename T1, typename T2>
-    int add_expect_exception(const std::string &name, const T1 &func, const T2 &exception,
+  
+    template<typename T>
+    int add_expect_exception(const std::string &name, const T &func, const Error &exception,
                              const std::experimental::source_location &l =
                              std::experimental::source_location::current())
     {
       all_tests.template emplace_back(
-          [this, func, exception, location = symxx::location_to_str(l)]()
+          [this, func, exception, l]()
           {
             bool caught = false;
             try
             {
               func();
             }
-            catch (T2 &err)
+            catch (Error &err)
             {
               if (err != exception)
               {
-                throw err;
+                throw UnitTestError(err, l);
               }
               else
+              {
                 caught = true;
+              }
             }
             if (!caught)
             {
               results += ("[\033[0;32;31mFAILED\033[m] Test '" + all_tests[curr_test].first + "' in \033[1;37m"
-                          + location + ":\033[m Exception not captured.");
+                          + location_to_str(l) + ":\033[m Exception not captured.");
               failure.template emplace_back(curr_test);
             }
           });
@@ -224,10 +237,11 @@ namespace symxx::test
           all_tests[curr_test].second();
           e = timer.get_microseconds();
         }
-        catch (symxx::Error &e)
+        catch (UnitTestError &e)
         {
-          results += ("[\033[0;32;31mEXCEPTION\033[m] Test " +
-                      std::to_string(curr_test) + " | " + e.get_content() + "\n");
+          results += ("[\033[0;32;31mEXCEPTION\033[m] Test "
+                      + std::to_string(curr_test) + " at " + e.test_location
+                      + ":\n" + e.get_content() + "\n");
           exceptions.emplace_back(curr_test);
         }
         if (failure.size() != last_failure || exceptions.size() != last_exception)

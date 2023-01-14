@@ -12,8 +12,8 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 
-//#define SYMXX_ENABLE_INT128
-#define SYMXX_ENABLE_HUGE
+#define SYMXX_ENABLE_INT128
+//#define SYMXX_ENABLE_HUGE
 #include "symxx/symxx.hpp"
 #include <iostream>
 #include <map>
@@ -38,70 +38,43 @@ void print_func(const std::string &name, const std::tuple<std::vector<std::strin
 {
   std::string argstr;
   for (auto &a: std::get<0>(func))
-  {
     argstr += a + ",";
-  }
   if (!argstr.empty())
-  {
     argstr.pop_back();
-  }
   std::cout << "Function: " << name << "(" << argstr << ") = "
-            << std::get<1>(func) << std::endl;
+                                                     << std::get<1>(func) << std::endl;
 }
 
-void print_result(const ExprNode<IntType> &expr)
+void print_result(ExprNode<IntType> expr, const std::map<std::string, long double> &constants)
 {
+  std::cout << expr.normalize();
   if (auto fp = expr.try_eval(); fp != nullptr && fp->no_symbols())
   {
     if (fp->is_rational() && fp->template to<Rational<IntType>>().is_int())
     {
-      std::cout << *fp << std::endl;
+      std::cout << std::endl;
       return;
     }
-    else
-    {
-      auto real = fp->try_eval();
-      if (real == nullptr)
-      {
-        std::cout << expr << std::endl;
-        return;
-      }
-      else
-      {
-        auto d = real->template try_to<double>();
-        if (d == nullptr)
-        {
-          std::cout << expr << std::endl;
-          return;
-        }
-        else
-        {
-          std::cout << expr << " = " << ::symxx::dtoa(*d) << std::endl;
-          return;
-        }
-      }
-    }
-    return;
   }
-  std::cout << expr << std::endl;
-}
-
-void print_var(const std::string &name, const Real<IntType> &var)
-{
-  std::cout << "Variable: " << name << " = ";
-  print_result(Frac<IntType>{var});
-}
-
-void cmd_normalize(const std::string &body, const std::map<std::string, Real<IntType>> &vars)
-{
-  ExprParser<IntType> p{body};
-  auto a = p.parse();
-  std::map<std::string, Real<IntType>> env;
-  for (auto &r: vars)
+  
+  if (auto ldp = expr.try_eval(constants); ldp != nullptr)
   {
-    env[r.first] = r.second;
+    std::cout << " = " << *ldp << std::endl;
   }
-  print_result(a.set_var(env));
+  else
+  {
+    std::cout << std::endl;
+  }
+}
+
+void print_constant(const std::string &name, const long double &val)
+{
+  std::cout << "Constant: " << name << " = " << val << std::endl;
+}
+
+void cmd_normalize(const std::string &body, const std::map<std::string, long double> &constants)
+{
+  print_result(ExprParser<IntType>(body).parse().normalize(), constants);
 }
 
 void
@@ -109,26 +82,17 @@ cmd_func(const std::string &body, std::map<std::string, std::tuple<std::vector<s
 {
   auto lp = body.find_first_of("(");
   auto rp = body.find_first_of(")", lp);
-  if (lp == std::string::npos || rp == std::string::npos)
-  {
-    throw Error("Input error.");
-  }
+  symxx_assert(lp != std::string::npos && rp != std::string::npos, "Function needs '(' and ')'.");
   auto name = body.substr(0, lp);
   std::string temp;
   std::vector<std::string> args;
   size_t i = lp + 1;
   for (; i < rp; i++)
   {
-    if (std::isspace(body[i]))
-    {
-      continue;
-    }
+    if (std::isspace(body[i])) continue;
     if (body[i] == ',')
     {
-      if (temp.empty())
-      {
-        throw Error("Argument can not be \"\".");
-      }
+      symxx_assert(!temp.empty(), "Argument can not be \"\".");
       args.emplace_back(temp);
       temp = "";
       continue;
@@ -140,14 +104,9 @@ cmd_func(const std::string &body, std::map<std::string, std::tuple<std::vector<s
     args.emplace_back(temp);
   }
   ++i; // skip )
-  while (std::isspace(body[i]))
-  {
-    ++i;
-  }
-  if (body[i] != '=')
-  {
-    throw Error("Expected '='.");
-  }
+  while (std::isspace(body[i])) ++i;
+  
+  symxx_assert(body[i] == '=', "Expected '='.");
   ExprParser<IntType> p{body.substr(i + 1)};
   auto func = p.parse();
   func.normalize();
@@ -164,34 +123,25 @@ cmd_func(const std::string &body, std::map<std::string, std::tuple<std::vector<s
   print_func(name, funcs[name]);
 }
 
-void cmd_var(const std::string &body, std::map<std::string, Real<IntType>> &vars)
+void cmd_constant(const std::string &body, std::map<std::string, long double> &constants)
 {
   auto eq = body.find_first_of("=");
-  if (eq == std::string::npos)
-  {
-    throw Error("Expected '='.");
-  }
+  symxx_assert(eq != std::string::npos, "Expected '='.");
   size_t i = 0;
   std::string temp;
   for (; i < eq; i++)
   {
-    if (std::isspace(body[i]))
-    {
-      continue;
-    }
+    if (std::isspace(body[i])) continue;
     temp += body[i];
   }
-  if (temp.empty())
-  {
-    throw Error("Variable's name can not be empty.");
-  }
-  vars[temp] = Real<IntType>{Rational<IntType>{body.substr(i + 1)}};
-  print_var(temp, vars[temp]);
+  symxx_assert(!temp.empty(), "Constant's name can not be empty.");
+  constants[temp] = std::stold(body.substr(i + 1));
+  print_constant(temp, constants[temp]);
 }
 
 void cmd_print(const std::string &body,
                const std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs,
-               const std::map<std::string, Real<IntType>> &vars)
+               const std::map<std::string, long double> &constants)
 {
   if (body.empty())
   {
@@ -199,55 +149,38 @@ void cmd_print(const std::string &body,
     {
       print_func(r.first, r.second);
     }
-    for (auto &r: vars)
+    for (auto &r: constants)
     {
-      print_var(r.first, r.second);
+      print_constant(r.first, r.second);
     }
   }
   else
   {
     auto itf = funcs.find(body);
-    auto itv = vars.find(body);
+    auto itv = constants.find(body);
     if (itf != funcs.end())
     {
       print_func(body, itf->second);
     }
-    if (itv != vars.end())
+    if (itv != constants.end())
     {
-      print_var(body, itv->second);
+      print_constant(body, itv->second);
     }
   }
 }
 
-Real<IntType> get_real(const std::string &str, const std::map<std::string, Real<IntType>> &vars)
-{
-  auto it = vars.find(str);
-  if (it == vars.end())
-  {
-    return Real<IntType>{Rational<IntType>{str}};
-  }
-  return it->second;
-};
-
-void cmd_call(const std::tuple<std::vector<std::string>, ExprNode<IntType>> &func,
-              const std::string &argstr,
-              const std::map<std::string, Real<IntType>> &vars)
+void cmd_call(std::tuple<std::vector<std::string>, ExprNode<IntType>> func,
+              const std::string &argstr, const std::map<std::string, long double> &constants)
 {
   std::string temp;
   std::vector<Real<IntType>> args;
   for (auto &i: argstr)
   {
-    if (std::isspace(i))
-    {
-      continue;
-    }
+    if (std::isspace(i)) continue;
     if (i == ',')
     {
-      if (temp.empty())
-      {
-        throw Error("Argument can not be \"\".");
-      }
-      args.emplace_back(get_real(temp, vars));
+      symxx_assert(!temp.empty(), "Argument can not be \"\".");
+      args.emplace_back(Real<IntType>{Rational<IntType>{temp}});
       temp = "";
       continue;
     }
@@ -255,24 +188,17 @@ void cmd_call(const std::tuple<std::vector<std::string>, ExprNode<IntType>> &fun
   }
   if (!temp.empty())
   {
-    args.emplace_back(get_real(temp, vars));
+    args.emplace_back(Real<IntType>{Rational<IntType>{temp}});
   }
   
   auto fargs = std::get<0>(func);
-  if (args.size() != fargs.size())
-  {
-    throw Error("Expected " + std::to_string(fargs.size()) + " arguments");
-  }
-  std::map<std::string, Real<IntType>> env;
-  for (auto &r: vars)
-  {
-    env[r.first] = r.second;
-  }
+  symxx_assert(args.size() == fargs.size(), "Expected " + std::to_string(fargs.size()) + " arguments");
+  Environment<IntType> env{std::make_shared<std::map<std::string, Real<IntType>>>()};
   for (size_t i = 0; i < fargs.size(); i++)
   {
-    env[fargs[i]] = args[i];
+    (*env)[fargs[i]] = args[i];
   }
-  print_result(std::get<1>(func).set_var(env));
+  print_result(std::get<1>(func).substitute(env), constants);
 }
 
 void cmd_version()
@@ -282,11 +208,16 @@ void cmd_version()
 
 int main()
 {
-  std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
-  std::map<std::string, Real<IntType>> vars
+  std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs
       {
-          {"pi", Rational<IntType>(std::numbers::pi_v<double>)},
-          {"e",  std::numbers::e_v<double>}
+          {"fib", {{"n"}, ExprParser<IntType>{"((1/5)^0.5)*(((1+5^0.5)/2)^n-((1-5^0.5)/2)^n)"}.parse().normalize()}}
+      };
+  std::map<std::string, long double> constants
+      {
+          {"pi",     std::numbers::pi},
+          {"e",      std::numbers::e},
+          {"phi",    std::numbers::phi},
+          {"egamma", std::numbers::egamma}
       };
   cmd_version();
   std::string str, cmd, body;
@@ -307,10 +238,10 @@ int main()
         cmd = str;
         body = "";
       }
-      if (cmd == "normalize") { cmd_normalize(body, vars); }
+      if (cmd == "normalize") { cmd_normalize(body, constants); }
       else if (cmd == "func") { cmd_func(body, funcs); }
-      else if (cmd == "var") { cmd_var(body, vars); }
-      else if (cmd == "print") { cmd_print(body, funcs, vars); }
+      else if (cmd == "constant") { cmd_constant(body, constants); }
+      else if (cmd == "print") { cmd_print(body, funcs, constants); }
       else if (cmd == "version") { cmd_version(); }
       else if (cmd == "quit") { return 0; }
       else
@@ -319,18 +250,18 @@ int main()
         auto rp = cmd.find_first_of(")", lp);
         if (lp == std::string::npos || rp == std::string::npos)
         {
-          cmd_normalize(cmd, vars);
+          cmd_normalize(str, constants);
           continue;
         }
         auto it = funcs.find(cmd.substr(0, lp));
         if (it == funcs.end())
         {
-          cmd_normalize(cmd, vars);
+          cmd_normalize(str, constants);
           continue;
         }
         else
         {
-          cmd_call(it->second, cmd.substr(lp + 1), vars);
+          cmd_call(it->second, cmd.substr(lp + 1, rp - lp - 1), constants);
         }
       }
     }

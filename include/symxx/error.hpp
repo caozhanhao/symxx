@@ -39,7 +39,7 @@ namespace symxx
   
     [[nodiscard]] std::string get_content() const
     {
-      return "\033[0;32;31mError: \033[1;37m" + location + ":\033[m " + detail;
+      return "\033[0;32;31mError: \033[m" + location + ":\033[m " + detail;
     }
   
     //For Unit Test

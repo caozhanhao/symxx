@@ -69,37 +69,30 @@ namespace symxx
   private:
     std::variant<Frac<T>, OpData<T>> val;
     NodeType node_type;
-  
+
   public:
     ExprNode()
         : node_type(NodeType::FRAC), val(Frac<T>{0}) {}
-    
+  
     ExprNode(char op, ExprNode *lhs, ExprNode *rhs)
         : val(OpData{op, lhs, rhs}), node_type(NodeType::OP) {}
-    
+  
     ExprNode(const Frac<T> &frac) : val(frac), node_type(NodeType::FRAC) {}
-    
+  
     ExprNode(const ExprNode &nd) : val(nd.val), node_type(nd.node_type) {}
-    
-    ExprNode set_var(const std::map<std::string, Real<T>> &e) const
-    {
-      auto a = *this;
-      Environment<T> env = std::make_shared<std::map<std::string, Real<T>>>(e);
-      a.set_env(env);
-      return a;
-    }
-    
-    void set_env(Environment<T> e)
+  
+    ExprNode &substitute(Environment<T> e)
     {
       if (node_type == NodeType::FRAC)
       {
-        frac().set_env(e);
-        return;
+        frac().substitute(e);
+        return *this;
       }
       auto &data = opdata();
-      data.lhs->set_env(e);
-      data.rhs->set_env(e);
+      data.lhs->substitute(e);
+      data.rhs->substitute(e);
       normalize();
+      return *this;
     }
     
     std::unique_ptr<Frac<T>> try_eval() const
@@ -138,25 +131,55 @@ namespace symxx
       return nullptr;
     }
   
-    void normalize()
+    std::unique_ptr<long double> try_eval(const std::map<std::string, long double> &v) const
     {
       if (node_type == NodeType::FRAC)
       {
-        return;
+        return frac().try_eval(v);
+      }
+      auto &data = opdata();
+      auto lhsv = data.lhs->try_eval(v);
+      auto rhsv = data.rhs->try_eval(v);
+      if (auto lhsv = data.lhs->try_eval(v), rhsv = data.rhs->try_eval(v); lhsv == nullptr || rhsv == nullptr)
+      {
+        return nullptr;
+      }
+      switch (data.op)
+      {
+        case '+':
+          return std::make_unique<long double>(*lhsv + *rhsv);
+        case '-':
+          return std::make_unique<long double>(*lhsv - *rhsv);
+        case '*':
+          return std::make_unique<long double>(*lhsv * *rhsv);
+        case '/':
+          return std::make_unique<long double>(*lhsv / *rhsv);
+        case '^':
+          return std::make_unique<long double>(std::pow(*lhsv, *rhsv));
+          break;
+        default:
+          symxx_unreachable();
+          break;
+      }
+      symxx_unreachable();
+      return nullptr;
+    }
+  
+    ExprNode &normalize()
+    {
+      if (node_type == NodeType::FRAC)
+      {
+        return *this;
       }
       auto &data = opdata();
       auto lhsv = data.lhs->try_eval();
       auto rhsv = data.rhs->try_eval();
-      if (lhsv == nullptr)
-      {
-        data.lhs->normalize();
-      }
-      if (rhsv == nullptr)
+      if (lhsv == nullptr || rhsv == nullptr)
       {
         data.rhs->normalize();
+        data.lhs->normalize();
+        return *this;
       }
-      if (lhsv == nullptr || rhsv == nullptr)
-        return;
       switch (data.op)
       {
         case '+':
@@ -177,7 +200,8 @@ namespace symxx
           if (power == nullptr || !power->is_rational())
           {
             data.lhs->normalize();
-            return;
+            data.rhs->normalize();
+            return *this;
           }
           val = lhsv->pow(power->template to<Rational<T>>());
         }
@@ -187,34 +211,25 @@ namespace symxx
           break;
       }
       node_type = NodeType::FRAC;
+      return *this;
     }
   
     std::string to_string() const
     {
       if (type() == NodeType::FRAC)
-      {
         return frac().to_string();
-      }
     
       std::string ret;
       auto &opd = opdata();
       if (withparen(true))
-      {
         ret += "(" + opd.lhs->to_string() + ")";
-      }
       else
-      {
         ret += opd.lhs->to_string();
-      }
       ret += opd.op;
       if (withparen(false))
-      {
         ret += "(" + opd.rhs->to_string() + ")";
-      }
       else
-      {
         ret += opd.rhs->to_string();
-      }
       return ret;
     }
 
@@ -223,19 +238,24 @@ namespace symxx
     {
       if (type() == NodeType::FRAC)
       {
+        if (frac().output_need_paren())
+        {
+          return true;
+        }
         return false;
       }
+  
       auto &opd = opdata();
       auto op = opd.op;
-      if (opd.lhs == nullptr || opd.rhs == nullptr)
-      {
-        return false;
-      }
-    
+  
       if (left)
       {
         if (opd.lhs->type() != NodeType::OP)
         {
+          if (opd.lhs->frac().output_need_paren())
+          {
+            return true;
+          }
           return false;
         }
         char leftop = opd.lhs->opdata().op;
@@ -244,9 +264,7 @@ namespace symxx
           case '*':
           case '/':
             if (leftop == '+' || leftop == '-')
-            {
               return true;
-            }
           case '^':
             return true;
         }
@@ -255,6 +273,10 @@ namespace symxx
       {
         if (opd.rhs->type() != NodeType::OP)
         {
+          if (opd.rhs->frac().output_need_paren())
+          {
+            return true;
+          }
           return false;
         }
         char rightop = opd.rhs->opdata().op;
@@ -262,21 +284,15 @@ namespace symxx
         {
           case '*':
             if (rightop == '+' || rightop == '-')
-            {
               return true;
-            }
             break;
           case '/':
             if (rightop == '+' || rightop == '-' || rightop == '*' || rightop == '/')
-            {
               return true;
-            }
             break;
           case '-':
             if (rightop == '+' || rightop == '-')
-            {
               return true;
-            }
             break;
           case '^':
             return true;

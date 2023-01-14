@@ -49,7 +49,6 @@ namespace symxx::test
     SYMXX_EXPECT_EQ(nth_root<int>(4, 4), g2);
     SYMXX_EXPECT_EQ(nth_root<int>(2, {1, 3}), (Real<int>({1, 3}, 3, 2)));
     SYMXX_EXPECT_EQ(nth_root<int>(2, {1, 9}), (Rational<int>(1, 3)));
-    
     SYMXX_EXPECT_EQ(g4, 2);
     SYMXX_EXPECT_TRUE(g2 > (Rational<int>{141, 100}));
     SYMXX_EXPECT_TRUE(g4 > g3);
@@ -58,6 +57,12 @@ namespace symxx::test
     SYMXX_EXPECT_TRUE(g4_4 == g2);
     SYMXX_EXPECT_TRUE(g4_4 < g3);
     SYMXX_EXPECT_TRUE(g4_4 < g4);
+    SYMXX_EXPECT_TRUE(-1 < 0);
+    SYMXX_EXPECT_TRUE(1 > 0);
+    SYMXX_EXPECT_TRUE(g2 > 0);
+    SYMXX_EXPECT_TRUE(g2.negate() < 0);
+    SYMXX_EXPECT_TRUE(g2.negate() > g3.negate());
+    SYMXX_EXPECT_TRUE((Real<int>{-4} < g3.negate()));
     SYMXX_EXPECT_EQ(g4 + 2, 4);
     SYMXX_EXPECT_EQ(g4 - 2, 0);
     SYMXX_EXPECT_EQ(g4 * 2, 4);

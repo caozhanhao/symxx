@@ -220,27 +220,23 @@ namespace symxx
       Rational<T> res;
       res.numerator = static_cast<T>(Pow(numerator, p.template to<double>()));
       res.denominator = static_cast<T>(Pow(denominator, p.template to<double>()));
-      symxx_assert(denominator != 0, symxx_division_by_zero);
       res.normalize();
       return res;
     }
   
-  
-    bool operator<(const Rational &r) const
+    auto operator<=>(const Rational &r) const
     {
-      return numerator * r.denominator < r.numerator * denominator;
+      return numerator * r.denominator <=> r.numerator * denominator;
+    }
+  
+    bool operator!=(const Rational &r) const
+    {
+      return numerator * r.denominator != r.numerator * denominator;
     }
   
     bool operator==(const Rational &r) const
     {
-      return numerator == r.numerator && denominator == r.denominator;
-    }
-  
-    bool operator!=(const Rational &r) const { return !(*this == r); }
-  
-    bool operator>(const Rational &r) const
-    {
-      return numerator * r.denominator > r.numerator * denominator;
+      return numerator * r.denominator == r.numerator * denominator;
     }
   
     bool is_int() const { return denominator == 1; }
@@ -297,9 +293,7 @@ namespace symxx
     std::string to_string() const
     {
       if (denominator != 1)
-      {
         return To_String(numerator) + "/" + To_String(denominator);
-      }
       else
         return To_String(numerator);
       symxx_unreachable();
@@ -319,6 +313,7 @@ namespace symxx
   void radical_reduce(T &num, Make_unsigned_t<T> &index, Rational<T> &coe)
   {
     //unfinished
+    if (num > 100000) return;
     for (T i = 2; i < num && num > 1; i++)
     {
       Make_unsigned_t<T> k = 0;
@@ -444,7 +439,7 @@ namespace symxx
     {
       if (p == 0) return 1;
       if (p == 1) return *this;
-      if (p < 0) return pow(p.negate());
+      if (p < 0) return inverse().pow(p.negate());
       
       auto res = *this;
       if (p.is_int())
@@ -463,22 +458,30 @@ namespace symxx
       res.normalize();
       return res;
     }
-    
-    Rational<T> &get_coe() const
+  
+    auto &get_coe() const
     {
       return coe;
     }
-    
-    Rational<T> &get_coe()
+  
+    auto &get_coe()
     {
       return coe;
     }
-    
+  
     bool operator<(const Real &r) const
     {
+      if (*this == r) return false;
+      if (coe <= 0 && r.coe >= 0) return true;
+      if (coe >= 0 && r.coe <= 0) return false;
+      if (coe <= 0 && r.coe <= 0)
+      {
+        return coe.negate().pow(r.index * index) * radicand.pow(r.index) >
+               r.coe.negate().pow(r.index * index) * (r.radicand.pow(index));
+      }
       return coe.pow(r.index * index) * radicand.pow(r.index) < r.coe.pow(r.index * index) * (r.radicand.pow(index));
     }
-    
+  
     bool operator==(const Real &r) const
     {
       return coe == r.coe && radicand == r.radicand && index == r.index;
@@ -501,11 +504,22 @@ namespace symxx
       T num = radicand.get_numerator();
       radical_reduce(num, index, coe);
       radicand = {num, 1};
-      if (radicand == 1) index = 1;
+      if (radicand == 1)
+      {
+        index = 1;
+      }
+      if (coe == 0)
+      {
+        index = 1;
+        radicand = 1;
+      }
     }
   
-    Real negate() const { return {coe.negate(), radicand, index}; }
-    
+    Real negate() const
+    {
+      return {coe.negate(), radicand, index};
+    }
+  
     bool is_rational() const
     {
       return coe == 0 || radicand == 1 || radicand == 0 || index == 1 || index == 0;
@@ -527,16 +541,12 @@ namespace symxx
       std::string ret;
       if (coe != 1)
       {
-        ret += coe.to_string();
+        ret += coe == -1 ? "-" : coe.to_string();
       }
       if (index != 2)
-      {
         ret += "_" + To_String(index) + "_/" + radicand.to_string();
-      }
       else
-      {
         ret += "_/" + radicand.to_string();
-      }
       return ret;
     }
   
