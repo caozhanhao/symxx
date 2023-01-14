@@ -11,36 +11,17 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
-#ifndef SYMXX_ALL_TESTS_HPP
-#define SYMXX_ALL_TESTS_HPP
-
+//#define SYMXX_ENABLE_HUGE
 #include "unittest.hpp"
-#include "huge_test.hpp"
-#include "dtoa_test.hpp"
-#include "num_test.hpp"
-#include "strconv_test.hpp"
+#include "huge_test.cpp"
+#include "dtoa_test.cpp"
+#include "num_test.cpp"
+#include "strconv_test.cpp"
 
-namespace symxx::test
+int main()
 {
-  int unittest()
-  {
-    try
-    {
-      auto &test = test::get_test();
-#if defined(SYMXX_ENABLE_HUGE)
-      huge_test();
-#endif
-      dtoa_test();
-      num_test();
-      strconv_test();
-      test.run_tests();
-      test.print_results();
-    }
-    catch (Error &e)
-    {
-      std::cerr << e.get_content() << std::endl;
-    }
-    return 0;
-  }
+  auto &test = symxx::test::get_test();
+  int ret = test.run_tests();
+  test.print_results();
+  return ret;
 }
-#endif

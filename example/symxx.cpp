@@ -13,10 +13,8 @@
 //   limitations under the License.
 
 //#define SYMXX_ENABLE_INT128
-//#define SYMXX_ENABLE_HUGE
-
+#define SYMXX_ENABLE_HUGE
 #include "symxx/symxx.hpp"
-#include "all_tests.hpp"
 #include <iostream>
 #include <map>
 #include <string>
@@ -284,7 +282,6 @@ void cmd_version()
 
 int main()
 {
-  test::unittest();
   std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> funcs;
   std::map<std::string, Real<IntType>> vars
       {

@@ -18,18 +18,23 @@
 #include <experimental/source_location>
 namespace symxx
 {
+  std::string location_to_str(const std::experimental::source_location &l)
+  {
+    return std::string(l.file_name()) + ":" + std::to_string(l.line()) +
+           ":" + l.function_name() + "()";
+  }
+  
   class Error : public std::logic_error
   {
   private:
     std::string location;
     std::string detail;
-
+  
   public:
     Error(const std::string &detail_, const std::experimental::source_location &l =
     std::experimental::source_location::current())
         : logic_error(detail_),
-          location(std::string(l.file_name()) + ":" + std::to_string(l.line()) +
-                   ":" + l.function_name() + "()"),
+          location(location_to_str(l)),
           detail(detail_) {}
   
     [[nodiscard]] std::string get_content() const

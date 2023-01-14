@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.8.2)
+project(symxx)
+set(CMAKE_CXX_STANDARD 20)
+add_executable(all_tests all_tests.cpp)
+add_test(NAME all_tests COMMAND all_tests)
