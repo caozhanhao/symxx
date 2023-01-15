@@ -12,7 +12,7 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 
-#define SYMXX_ENABLE_INT128
+//#define SYMXX_ENABLE_INT128
 //#define SYMXX_ENABLE_HUGE
 #include "symxx/symxx.hpp"
 #include <iostream>
