@@ -14,15 +14,20 @@
 #ifndef SYMXX_UTILS_HPP
 #define SYMXX_UTILS_HPP
 
-#include "huge.hpp"
 #include "error.hpp"
-#include <utility>
-#include <cmath>
-#include <numeric>
-#include <string>
 #include <type_traits>
+#include <string_view>
+#include <experimental/source_location>
 
 namespace symxx::utils
 {
+  template<typename T>
+  consteval std::string_view nameof()
+  {
+    std::string_view str = std::experimental::source_location::current().function_name();
+    auto b = str.find_first_of('<');
+    auto e = str.find_last_of('>');
+    return str.substr(b + 1, e - b - 1);
+  }
 }
 #endif

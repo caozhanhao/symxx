@@ -11,7 +11,11 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
+#include <string_view>
+
+constexpr std::string_view SYMXX_VERSION = "0.0.1";
 #define SYMXX_ENABLE_INT128
+
 #include "unittest.hpp"
 #include "huge_test.cpp"
 #include "dtoa_test.cpp"

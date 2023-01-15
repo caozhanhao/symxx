@@ -14,6 +14,7 @@
 #ifndef SYMXX_SYMXX_HPP
 #define SYMXX_SYMXX_HPP
 
+#include "cli.hpp"
 #include "dtoa.hpp"
 #include "error.hpp"
 #include "expr.hpp"

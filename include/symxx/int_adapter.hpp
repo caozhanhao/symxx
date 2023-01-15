@@ -23,6 +23,7 @@
 #include <utility>
 #include <cmath>
 #include <string>
+#include <numeric>
 #include <type_traits>
 
 namespace symxx
