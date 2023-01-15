@@ -77,6 +77,23 @@ void cmd_normalize(const std::string &body, const std::map<std::string, long dou
   print_result(ExprParser<IntType>(body).parse().normalize(), constants);
 }
 
+void cmd_factor(const std::string &body)
+{
+  std::multiset<IntType> factors;
+  auto npp = ExprParser<IntType>(body).parse().normalize().try_eval();
+  symxx_assert(npp != nullptr, "Invailed string");
+  auto np = npp->try_eval();
+  symxx_assert(np != nullptr, "Invailed string");
+  auto n = np->try_to<IntType>();
+  symxx_assert(n != nullptr, "Invailed string");
+  factorize<IntType>(*n, factors);
+  for (auto &r: factors)
+  {
+    std::cout << adapter_to_string(r) << " ";
+  }
+  std::cout << std::endl;
+}
+
 void
 cmd_func(const std::string &body, std::map<std::string, std::tuple<std::vector<std::string>, ExprNode<IntType>>> &funcs)
 {
@@ -242,6 +259,7 @@ int main()
       else if (cmd == "func") { cmd_func(body, funcs); }
       else if (cmd == "constant") { cmd_constant(body, constants); }
       else if (cmd == "print") { cmd_print(body, funcs, constants); }
+      else if (cmd == "factor") { cmd_factor(body); }
       else if (cmd == "version") { cmd_version(); }
       else if (cmd == "quit") { return 0; }
       else

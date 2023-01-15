@@ -67,15 +67,6 @@ namespace symxx::test
     }
   };
   
-  template<typename T>
-  T random_digit(T a, T b)//[a,b]
-  {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<T> dis{a, b};
-    return dis(gen);
-  }
-  
   char randichar(int a, int b)//[a,b]
   {
     return static_cast<char>(static_cast<char>(random_digit(a, b)) + '0');
@@ -95,15 +86,18 @@ namespace symxx::test
   
   namespace test_internal
   {
-    template<typename F>
-    auto is_callable(F f)
-    -> decltype(f(), std::true_type()) { return std::true_type(); }
-    
-    template<typename F>
-    std::false_type is_callable(F f) { return std::false_type(); }
-    
+    template<typename T, typename V = void>
+    struct is_container : std::false_type {};
+  
+    template<typename T>
+    struct is_container<T, std::void_t<decltype(std::declval<typename T::value_type>())>> : std::true_type {};
+  
+    template<typename T>
+    constexpr bool is_container_v = is_container<T>::value;
+  
     struct StrTag {};
     struct SymxxTag {};
+    struct ContainerTag {};
     struct BasicTag {};
     struct BoolTag {};
     struct CharptrTag {};
@@ -113,7 +107,9 @@ namespace symxx::test
       using tag = std::conditional_t<std::is_same_v<std::decay_t<U>, std::string>, StrTag,
           std::conditional_t<std::is_same_v<std::decay_t<U>, const char *>, CharptrTag,
               std::conditional_t<std::is_same_v<std::decay_t<U>, bool>, BoolTag,
-                  std::conditional_t<std::is_fundamental_v<std::decay_t<U>>, BasicTag, SymxxTag>>>>;
+                  std::conditional_t<std::is_fundamental_v<std::decay_t<U>>, BasicTag,
+                      std::conditional_t<is_container_v<std::decay_t<U>>,
+                          ContainerTag, SymxxTag>>>>>;
     };
     
     std::string internal_to_str(const char *a, CharptrTag)
@@ -136,11 +132,34 @@ namespace symxx::test
     {
       return a.to_string();
     }
-    
+  
     template<typename T>
     std::string internal_to_str(const T &a, BasicTag)
     {
-      return std::to_string(a);
+      if constexpr(std::is_integral_v<T>)
+      {
+        return adapter_to_string(a);
+      }
+      else
+      {
+        return std::to_string(a);
+      }
+    }
+  
+    template<typename T>
+    std::string internal_to_str(const T &a, ContainerTag)
+    {
+      std::string ret;
+      for (auto &r: a)
+      {
+        ret += test_internal::internal_to_str(r, typename test_internal::TagDispatch<std::decay_t<decltype(r)>>::tag{});
+        ret += ',';
+      }
+      if (!ret.empty())
+      {
+        ret.pop_back();
+      }
+      return ret;
     }
   }
   

@@ -11,9 +11,6 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
-#ifndef SYMXX_NUM_TEST_CPP
-#define SYMXX_NUM_TEST_CPP
-
 #include "unittest.hpp"
 
 namespace symxx::test
@@ -49,6 +46,9 @@ namespace symxx::test
     SYMXX_EXPECT_EQ(nth_root<int>(4, 4), g2);
     SYMXX_EXPECT_EQ(nth_root<int>(2, {1, 3}), (Real<int>({1, 3}, 3, 2)));
     SYMXX_EXPECT_EQ(nth_root<int>(2, {1, 9}), (Rational<int>(1, 3)));
+    SYMXX_EXPECT_EQ(nth_root<__int128>(4, 788860905221011700), nth_root<__int128>(4, 788860905221011700));
+    SYMXX_EXPECT_EQ(nth_root<__int128>(2, 788860905221011700), nth_root<__int128>(2, 7888609052210117) * 10);
+    SYMXX_EXPECT_EQ(nth_root<__int128>(8, 63527879748485376), 126);
     SYMXX_EXPECT_EQ(g4, 2);
     SYMXX_EXPECT_TRUE(g2 > (Rational<int>{141, 100}));
     SYMXX_EXPECT_TRUE(g4 > g3);
@@ -82,4 +82,3 @@ namespace symxx::test
     SYMXX_EXPECT_EQ(g3 / g3, 1);
   }
 }
-#endif

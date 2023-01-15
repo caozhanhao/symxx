@@ -290,13 +290,13 @@ namespace symxx
   {
     if (m == 2)
     {
-      return solve_variable_eq_helper(n);
+      return solve_variable_eq_helper<T>(n);
     }
     std::vector<std::vector<T>> ret;
-    auto tmp = solve_variable_eq_helper(n);
+    auto tmp = solve_variable_eq_helper<T>(n);
     for (auto &r: tmp)
     {
-      auto t = solve_variable_eq(r[1], m - 1);
+      auto t = solve_variable_eq<T>(r[1], m - 1);
       for (auto &a: t)
       {
         ret.push_back({r[0]});
@@ -415,7 +415,7 @@ namespace symxx
       std::vector<Term<T>> res;
       using pT = Make_unsigned_t<T>;
       symxx_assert(i.is_int(), "Must be a int.");
-      auto avecvec = solve_variable_eq(i.to_t(), static_cast<T>(poly.size()));
+      auto avecvec = solve_variable_eq<T>(i.to_t(), static_cast<T>(poly.size()));
       pT i_factorial = 1;
       for (pT t = 1; t <= i.to_t(); ++t)
       {
@@ -550,7 +550,22 @@ namespace symxx
   
     void normalize()
     {
-      std::sort(poly.begin(), poly.end());
+      std::sort(poly.begin(), poly.end(), [](auto &&a, auto &&b)
+      {
+        if (a.get_symbols() != b.get_symbols())
+        {
+          return a.get_symbols() > b.get_symbols();
+        }
+        if (a.get_coe().get_index() != b.get_coe().get_index())
+        {
+          return a.get_coe().get_index() > b.get_coe().get_index();
+        }
+        if (a.get_coe().get_radicand() != b.get_coe().get_radicand())
+        {
+          return a.get_coe().get_radicand() > b.get_coe().get_radicand();
+        }
+        return a.get_coe() > b.get_coe();
+      });
       for (auto it = poly.begin(); it < poly.end();)
       {
         if ((it + 1) < poly.end() && it->is_equivalent_with(*(it + 1)))
@@ -560,7 +575,9 @@ namespace symxx
           --it;
         }
         else
+        {
           ++it;
+        }
       }
     }
     
@@ -582,9 +599,9 @@ namespace symxx
   
     std::string to_string() const
     {
-      if (poly.empty()) return "";
+      if (poly.empty()) return "0";
       auto cnt = std::count_if(poly.cbegin(), poly.cend(), [](auto &&f) { return f.get_coe() != 0; });
-      if (cnt == 0) return "";
+      if (cnt == 0) return "0";
       std::string ret;
       bool first = true;
       for (auto it = poly.begin(); it < poly.end(); ++it)
@@ -805,20 +822,20 @@ namespace symxx
       }
       for (auto &r: numerator.get_poly())
       {
-        r *= Term < T > {mult};
+        r *= Term<T>{mult};
       }
       for (auto &r: denominator.get_poly())
       {
-        r *= Term < T > {mult};
+        r *= Term<T>{mult};
       }
-    
-      T g = Gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
-                denominator.get_poly()[0].get_coe().get_coe().to_t());
+  
+      T g = adapter_gcd(numerator.get_poly()[0].get_coe().get_coe().to_t(),
+                        denominator.get_poly()[0].get_coe().get_coe().to_t());
       for (auto &n: numerator.get_poly())
       {
         for (std::size_t i = 1; i < denominator.get_poly().size(); ++i)
         {
-          T new_g = Gcd(n.get_coe().get_coe().to_t(), denominator.get_poly()[i].get_coe().get_coe().to_t());
+          T new_g = adapter_gcd(n.get_coe().get_coe().to_t(), denominator.get_poly()[i].get_coe().get_coe().to_t());
           if (g % new_g == 0)
           {
             g = std::min(g, new_g);

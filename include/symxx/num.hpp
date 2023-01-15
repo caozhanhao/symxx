@@ -15,14 +15,17 @@
 #define SYMXX_NUM_HPP
 #include "error.hpp"
 #include "utils.hpp"
+#include "factorize.hpp"
 #include "int_adapter.hpp"
 #include <cmath>
 #include <limits>
 #include <numeric>
 #include <ostream>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <map>
 #include <memory>
 namespace symxx
 {
@@ -31,7 +34,7 @@ namespace symxx
   decimal_places(T v)
   {
     std::size_t count = 0;
-    v = Abs(v);
+    v = adapter_abs(v);
     auto c = v - std::floor(v);
     T factor = 10;
     T eps = std::numeric_limits<T>::epsilon() * c;
@@ -114,7 +117,7 @@ namespace symxx
       }
       else
       {
-        auto tmp = Pow<unsigned long long>(10, ndigits);
+        auto tmp = adapter_pow<unsigned long long>(10, ndigits);
         denominator = static_cast<T>(tmp);
         numerator = x * tmp;
       }
@@ -134,13 +137,13 @@ namespace symxx
           auto k = n.find('/');
           if (k == std::string::npos)
           {
-            numerator = To_int<T>(n);
+            numerator = adapter_to_int<T>(n);
             denominator = 1;
           }
           else
           {
-            numerator = To_int<T>(n.substr(0, k));
-            denominator = To_int<T>(n.substr(k + 1));
+            numerator = adapter_to_int<T>(n.substr(0, k));
+            denominator = adapter_to_int<T>(n.substr(k + 1));
           }
         }
       }
@@ -164,8 +167,9 @@ namespace symxx
   
     Rational &operator+=(const Rational &i)
     {
-      numerator = numerator * i.denominator + i.numerator * denominator;
-      denominator *= i.denominator;
+      auto l = adapter_lcm(denominator, i.denominator);
+      numerator = numerator * (l / denominator) + i.numerator * (l / i.denominator);
+      denominator = l;
       normalize();
       return *this;
     }
@@ -192,24 +196,23 @@ namespace symxx
   
     Rational &operator*=(const Rational &i)
     {
-      numerator *= i.numerator;
-      denominator *= i.denominator;
+      auto g1 = adapter_gcd(numerator, i.denominator);
+      auto g2 = adapter_gcd(i.numerator, denominator);
+      numerator = (numerator / g1) * (i.numerator / g2);
+      denominator = (denominator / g2) * (i.denominator / g1);
       symxx_assert(denominator != 0, symxx_division_by_zero);
-      normalize();
+      //normalize();
       return *this;
     }
   
     Rational operator/(const Rational &i) const
     {
-      auto a = *this;
-      a /= i;
-      return a;
+      return *this * i.inverse();
     }
   
     Rational &operator/=(const Rational &i)
     {
       *this *= i.inverse();
-      normalize();
       return *this;
     }
   
@@ -218,8 +221,8 @@ namespace symxx
       if (p == 0) return 1;
       if (p == 1) return *this;
       Rational<T> res;
-      res.numerator = static_cast<T>(Pow(numerator, p.template to<double>()));
-      res.denominator = static_cast<T>(Pow(denominator, p.template to<double>()));
+      res.numerator = static_cast<T>(adapter_pow(numerator, p.template to<double>()));
+      res.denominator = static_cast<T>(adapter_pow(denominator, p.template to<double>()));
       res.normalize();
       return res;
     }
@@ -250,7 +253,7 @@ namespace symxx
   
     void normalize()
     {
-      T g = ::symxx::Gcd(::symxx::Abs(numerator), ::symxx::Abs(denominator));
+      T g = ::symxx::adapter_gcd(::symxx::adapter_abs(numerator), ::symxx::adapter_abs(denominator));
       numerator /= g;
       denominator /= g;
       if (denominator == -1)
@@ -260,9 +263,13 @@ namespace symxx
       }
     }
   
-    T get_numerator() const { return numerator; }
+    const T &get_numerator() const { return numerator; }
   
-    T get_denominator() const { return denominator; }
+    const T &get_denominator() const { return denominator; }
+  
+    T &get_numerator() { return numerator; }
+  
+    T &get_denominator() { return denominator; }
   
     template<typename U>
     U to() const
@@ -293,9 +300,13 @@ namespace symxx
     std::string to_string() const
     {
       if (denominator != 1)
-        return To_String(numerator) + "/" + To_String(denominator);
+      {
+        return adapter_to_string(numerator) + "/" + adapter_to_string(denominator);
+      }
       else
-        return To_String(numerator);
+      {
+        return adapter_to_string(numerator);
+      }
       symxx_unreachable();
       return "";
     }
@@ -309,31 +320,6 @@ namespace symxx
     return os;
   }
   
-  template<typename T>
-  void radical_reduce(T &num, Make_unsigned_t<T> &index, Rational<T> &coe)
-  {
-    //unfinished
-    if (num > 100000) return;
-    for (T i = 2; i < num && num > 1; i++)
-    {
-      Make_unsigned_t<T> k = 0;
-      auto n = num;
-      for (; n % i == 0; n /= i) ++k;
-      if (k == 0 || k == 1) continue;
-      if (k >= index)
-      {
-        coe *= static_cast<T>(Pow(i, k / index));
-        num /= Pow(i, k - k % index);
-      }
-      else if (n == 1)
-      {
-        auto g = Gcd(index, k);
-        index /= g;
-        num = Pow(i, k / g);
-      }
-    }
-  }
-  
   namespace num_internal
   {
     struct NormalTag {};
@@ -343,7 +329,39 @@ namespace symxx
     {
       using tag = std::conditional_t<std::is_same_v<U, Rational<T>>, RationalTag, NormalTag>;
     };
+    
+    template<typename T>
+    std::map<std::make_unsigned_t<T>, std::vector<T>> decompose_radicand(T num)
+    {
+      std::map<std::make_unsigned_t<T>, std::vector<T>> ret;
+      std::multiset<T> factors;
+      factorize(num, factors);
+      std::make_unsigned_t<T> exp = 1;
+      for (auto it = factors.cbegin(); it != factors.cend(); ++it)
+      {
+        auto nit = std::next(it);
+        if (nit != factors.end() && *it == *nit)
+        {
+          ++exp;
+        }
+        else
+        {
+          auto itr = ret.find(exp);
+          if (itr != ret.end())
+          {
+            itr->second.emplace_back(*it);
+          }
+          else
+          {
+            ret.insert(std::make_pair(exp, std::vector<T>{*it}));
+          }
+          exp = 1;
+        }
+      }
+      return ret;
+    }
   }
+  
   template<typename T>
   class Real
   {
@@ -408,8 +426,9 @@ namespace symxx
     
     Real &operator*=(const Real &r)
     {
-      radicand = radicand.pow(r.index) * r.radicand.pow(index);
-      index *= r.index;
+      auto l = adapter_lcm(index, r.index);
+      radicand = radicand.pow(l / index) * r.radicand.pow(l / r.index);
+      index = l;
       coe *= r.coe;
       normalize();
       return *this;
@@ -430,9 +449,7 @@ namespace symxx
     
     Real operator/(const Real &r) const
     {
-      auto a = *this;
-      a /= r;
-      return a;
+      return *this * r.inverse();
     }
     
     Real pow(const Rational<T> &p) const
@@ -458,17 +475,27 @@ namespace symxx
       res.normalize();
       return res;
     }
-  
+    
     auto &get_coe() const
     {
       return coe;
     }
-  
+    
     auto &get_coe()
     {
       return coe;
     }
-  
+    
+    auto &get_index() const
+    {
+      return index;
+    }
+    
+    auto &get_radicand() const
+    {
+      return radicand;
+    }
+    
     bool operator<(const Real &r) const
     {
       if (*this == r) return false;
@@ -499,11 +526,51 @@ namespace symxx
       if (!radicand.is_int())
       {
         coe /= radicand.get_denominator();
-        radicand *= Pow(radicand.get_denominator(), index);
+        radicand *= adapter_pow(radicand.get_denominator(), index);
       }
-      T num = radicand.get_numerator();
-      radical_reduce(num, index, coe);
-      radicand = {num, 1};
+      //factor
+      T rad = radicand.get_numerator();
+      auto factors = num_internal::decompose_radicand(rad);
+      for (auto &r: factors)
+      {
+        auto exp = r.first;
+        while (exp >= index)
+        {
+          for (auto &i: r.second)
+          {
+            rad /= adapter_pow(i, index);
+            coe *= i;
+          }
+          exp -= index;
+        }
+      }
+  
+      if (rad != radicand.get_numerator())
+      {
+        radicand.get_numerator() = rad;
+        factors = num_internal::decompose_radicand(rad);
+      }
+      T g_exp = factors.begin()->first;
+      for (auto &r: factors)
+      {
+        g_exp = adapter_gcd(r.first, g_exp);
+      }
+      g_exp = adapter_gcd(index, g_exp);
+      if (g_exp != 1)
+      {
+        rad = 1;
+        for (auto &r: factors)
+        {
+          for (auto &i: r.second)
+          {
+            rad *= adapter_pow(i, r.first / g_exp);
+          }
+        }
+        index /= g_exp;
+        radicand = rad;
+      }
+  
+      //index/radicand/coe
       if (radicand == 1)
       {
         index = 1;
@@ -544,7 +611,9 @@ namespace symxx
         ret += coe == -1 ? "-" : coe.to_string();
       }
       if (index != 2)
-        ret += "_" + To_String(index) + "_/" + radicand.to_string();
+      {
+        ret += "_" + adapter_to_string(index) + "/" + radicand.to_string();
+      }
       else
         ret += "_/" + radicand.to_string();
       return ret;
@@ -567,7 +636,7 @@ namespace symxx
     U internal_to(num_internal::NormalTag) const
     {
       return coe.template to<U>() *
-             static_cast<U>(Pow(radicand.template to<double>(), 1.0 / static_cast<double>(index)));
+             static_cast<U>(adapter_pow(radicand.template to<double>(), 1.0 / static_cast<double>(index)));
     }
   
     template<typename U>
@@ -583,8 +652,8 @@ namespace symxx
       try
       {
         return std::make_unique<U>(coe.template to<U>() *
-                                   static_cast<U>(Pow(radicand.template to<double>(),
-                                                      1.0 / static_cast<double>(index))));
+                                   static_cast<U>(adapter_pow(radicand.template to<double>(),
+                                                              1.0 / static_cast<double>(index))));
       }
       catch (...)
       {

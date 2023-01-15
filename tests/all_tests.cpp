@@ -11,10 +11,11 @@
 //   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
-//#define SYMXX_ENABLE_HUGE
+#define SYMXX_ENABLE_INT128
 #include "unittest.hpp"
 #include "huge_test.cpp"
 #include "dtoa_test.cpp"
+#include "factorize_test.cpp"
 #include "num_test.cpp"
 #include "strconv_test.cpp"
 

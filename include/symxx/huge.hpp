@@ -15,6 +15,7 @@
 // This is a large integer class that borrows its ideas from CPython's int
 // https://github.com/python/cpython/blob/main/Objects/longobject.c
 
+//Not finished
 #ifndef SYMXX_HUGE_HPP
 #define SYMXX_HUGE_HPP
 #if defined(SYMXX_ENABLE_HUGE)
@@ -51,23 +52,6 @@ namespace symxx
   {
     namespace helper
     {
-      auto bit_length(digit d)
-      {
-        d |= 1;
-#if (defined(__clang__) || defined(__GNUC__))
-        return std::__lg(d) + 1;
-#elif defined(_MSC_VER)
-        unsigned long msb;
-        _BitScanReverse(&msb, d);
-        return (int)msb + 1;
-#else
-        digit k = 0;
-        for (; d != 0; d >>= 1)
-          ++k;
-        return k;
-#endif
-      }
-  
       // Shift the digits a[0,m] d bits left/right to z[0,m]
       // Returns the d bits shifted out of the top.
       digit digits_left_shift(const std::span<digit> z, const std::span<const digit> a, size_t m, int d)
@@ -354,7 +338,7 @@ namespace symxx
   
       std::vector<digit> v(sz_a + 1, 0);
       std::vector<digit> w(sz_b, 0);
-      int d = SYMXX_HUGE_SHIFT - helper::bit_length(b.back());
+      int d = SYMXX_HUGE_SHIFT - std::bit_width(b.back());
       helper::digits_left_shift(w, b, sz_b, d);
       digit carry = helper::digits_left_shift(v, a, sz_a, d);
       if (carry != 0 || v[sz_a - 1] >= w[sz_b - 1])

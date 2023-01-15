@@ -80,6 +80,23 @@ namespace symxx
     ExprNode <T> parse()
     {
       get_all_tokens();
+//      std::string debug;
+//      for(auto& r : tokens)
+//      {
+//        if(r.type() == ExprTokenType::OP || r.type() == ExprTokenType::LPAREN || r.type() == ExprTokenType::RPAREN)
+//        {
+//          debug += "<";
+//          debug += r.ch();
+//          debug += ">";
+//        }
+//        else if(r.type() == ExprTokenType::DIGIT || r.type() == ExprTokenType::SYMBOL)
+//          debug += "<" + r.frac().to_string() + ">";
+//        else if(r.type() == ExprTokenType::BEGIN || r.type() == ExprTokenType::END)
+//          continue;
+//        else
+//          symxx_unreachable();
+//      }
+//      //
       std::stack<ExprNode<T> *> nodes;
       std::stack<char> op;
       auto handle = [&nodes, &op]()
@@ -97,7 +114,7 @@ namespace symxx
         auto &curr = tokens[tokenpos];
         if (curr.type() == ExprTokenType::OP)
         {
-          while (!op.empty() && great(op.top(), curr.ch()))
+          while (!op.empty() && great_or_equal(op.top(), curr.ch()))
           {
             handle();
           }
@@ -147,7 +164,9 @@ namespace symxx
       while (tokens.back().type() != ExprTokenType::END)
       {
         auto token = get_token();
-        if ((token.type() == ExprTokenType::SYMBOL || token.type() == ExprTokenType::LPAREN)
+        if ((token.type() == ExprTokenType::SYMBOL
+             || token.type() == ExprTokenType::LPAREN
+             || token.type() == ExprTokenType::RADICAL)
             && (tokens.back().type() == ExprTokenType::SYMBOL //xx -> x*x
                 || tokens.back().type() == ExprTokenType::DIGIT  //2x -> 2*x
                 || tokens.back().type() == ExprTokenType::RPAREN))//(1+1)x -> (1+1)*x
@@ -170,6 +189,14 @@ namespace symxx
           tokens.template emplace_back(ExprToken<T>{ExprTokenType::RPAREN, ')'});
           continue;
         }
+        if ((tokens.back().type() == ExprTokenType::LPAREN || tokens.back().type() == ExprTokenType::BEGIN)
+            && (token.type() == ExprTokenType::OP && (token.ch() == '+' || token.ch() == '-')))
+          //+1->0+1, -1 -> 0-1
+        {
+          tokens.template emplace_back(ExprToken<T>{ExprTokenType::DIGIT, Frac<T>{0}});
+          tokens.template emplace_back(token);
+          continue;
+        }
         tokens.template emplace_back(token);
       }
     }
@@ -184,7 +211,6 @@ namespace symxx
         ++rawpos;
       } while (rawpos < raw.size() && (std::isdigit(raw[rawpos]) ||
                                        (has_dot ? false : raw[rawpos] == '.')));
-      if (temp == "+" || temp == "-") temp += '1';
       return Rational<T>{temp};
     }
   
@@ -218,8 +244,7 @@ namespace symxx
         ++rawpos;
         return {ExprTokenType::RADICAL, power.inverse()};
       }
-      else if (std::isdigit(ch) || ch == '.'
-               || (tokens.size() == 1 && (ch == '-' || ch == '+')))//'+' or '-' at begin
+      else if (std::isdigit(ch) || ch == '.')
       {
         return {ExprTokenType::DIGIT, Frac<T>{parse_a_number()}};
       }
@@ -268,8 +293,8 @@ namespace symxx
       symxx_unreachable("unexpected '" + std::string(1, ch) + "'.");
       return {ExprTokenType::END, 0};
     }
-    
-    bool great(char a, char b) const
+  
+    bool great_or_equal(char a, char b) const
     {
       const static std::map<char, int> priority = {
           {'(', 0},
@@ -278,7 +303,7 @@ namespace symxx
           {'*', 100},
           {'/', 100},
           {'^', 1000}};;
-      return priority.at(a) > priority.at(b);
+      return priority.at(a) >= priority.at(b);
     }
   };
 }

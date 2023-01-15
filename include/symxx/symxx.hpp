@@ -17,9 +17,11 @@
 #include "dtoa.hpp"
 #include "error.hpp"
 #include "expr.hpp"
+#include "factorize.hpp"
 #include "frac.hpp"
 #include "huge.hpp"
+#include "int_adapter.hpp"
 #include "num.hpp"
 #include "parser.hpp"
-
+#include "utils.hpp"
 #endif

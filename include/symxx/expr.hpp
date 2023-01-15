@@ -265,8 +265,10 @@ namespace symxx
           case '/':
             if (leftop == '+' || leftop == '-')
               return true;
+            break;
           case '^':
             return true;
+            break;
         }
       }
       else
