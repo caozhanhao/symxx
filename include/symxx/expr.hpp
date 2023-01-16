@@ -222,14 +222,78 @@ namespace symxx
       std::string ret;
       auto &opd = opdata();
       if (withparen(true))
+      {
         ret += "(" + opd.lhs->to_string() + ")";
+      }
       else
+      {
         ret += opd.lhs->to_string();
+      }
       ret += opd.op;
       if (withparen(false))
+      {
         ret += "(" + opd.rhs->to_string() + ")";
+      }
       else
+      {
         ret += opd.rhs->to_string();
+      }
+      return ret;
+    }
+  
+    std::string to_tex() const
+    {
+      if (type() == NodeType::FRAC)
+      {
+        return frac().to_tex();
+      }
+    
+      std::string ret;
+      auto &opd = opdata();
+    
+      if (opd.op == '/')
+      {
+        ret += "\\frac{";
+      }
+      if (withparen(true))
+      {
+        ret += "(" + opd.lhs->to_tex() + ")";
+      }
+      else
+      {
+        ret += opd.lhs->to_tex();
+      }
+    
+      if (opd.op == '/')
+      {
+        ret += "}{";
+      }
+      else if (opd.op == '+' || opd.op == '-')
+      {
+        ret += opd.op;
+      }
+      else if (opd.op == '*')
+      {
+        ret += "\\times ";
+      }
+      else if (opd.op == '^')
+      {
+        ret += "^{";
+      }
+    
+      if (withparen(false))
+      {
+        ret += "(" + opd.rhs->to_tex() + ")";
+      }
+      else
+      {
+        ret += opd.rhs->to_tex();
+      }
+    
+      if (opd.op == '/' || opd.op == '^')
+      {
+        ret += "}";
+      }
       return ret;
     }
 

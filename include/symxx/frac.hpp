@@ -247,18 +247,76 @@ namespace symxx
         else
           ret += coe.to_string();
       }
-      int exp = 1;
       for (auto it = symbols.begin(); it != symbols.end(); ++it)
       {
         auto exp = it->second;
         if (exp != 1)
-          ret += "(" + it->first + "**" + exp.to_string() + ")";
+        {
+          if (it->first.size() != 1)
+          {
+            ret += "({" + it->first + "}" + "**" + exp.to_string() + ")";
+          }
+          else
+          {
+            ret += "(" + it->first + "**" + exp.to_string() + ")";
+          }
+        }
         else
         {
           if (it->first.size() != 1)
+          {
             ret += "{" + it->first + "}";
+          }
           else
+          {
             ret += it->first;
+          }
+        }
+      }
+      return ret;
+    }
+  
+    std::string to_tex() const
+    {
+      auto coe = get_coe();
+      if (coe == 0) return "0";
+      auto symbols = get_symbols();
+      std::string ret;
+      if (coe != 1 || symbols.empty())
+      {
+        if (coe == -1 && !symbols.empty())
+        {
+          ret += "-";
+        }
+        else
+        {
+          ret += coe.to_tex();
+        }
+      }
+      for (auto it = symbols.begin(); it != symbols.end(); ++it)
+      {
+        auto exp = it->second;
+        if (exp != 1)
+        {
+          if (it->first.size() != 1)
+          {
+            ret += "\\" + it->first + "^{" + exp.to_tex() + "}";
+          }
+          else
+          {
+            ret += it->first + "^{" + exp.to_tex() + "}";
+          }
+        }
+        else
+        {
+          if (it->first.size() != 1)
+          {
+            ret += "\\" + it->first + " ";
+          }
+          else
+          {
+            ret += it->first;
+          }
         }
       }
       return ret;
@@ -600,14 +658,16 @@ namespace symxx
     std::string to_string() const
     {
       if (poly.empty()) return "0";
-      auto cnt = std::count_if(poly.cbegin(), poly.cend(), [](auto &&f) { return f.get_coe() != 0; });
-      if (cnt == 0) return "0";
+      auto nonzero_cnt = std::count_if(poly.cbegin(), poly.cend(), [](auto &&f) { return f.get_coe() != 0; });
+      if (nonzero_cnt == 0) return "0";
       std::string ret;
       bool first = true;
       for (auto it = poly.begin(); it < poly.end(); ++it)
       {
-        if (it->get_coe() == 0 && cnt > 0)
+        if (it->get_coe() == 0 && nonzero_cnt > 0)
+        {
           continue;
+        }
         if (first)
         {
           ret += it->to_string();
@@ -623,6 +683,40 @@ namespace symxx
         else
         {
           ret += "+" + it->to_string();
+          continue;
+        }
+      }
+      return ret;
+    }
+  
+    std::string to_tex() const
+    {
+      if (poly.empty()) return "0";
+      auto nonzero_cnt = std::count_if(poly.cbegin(), poly.cend(), [](auto &&f) { return f.get_coe() != 0; });
+      if (nonzero_cnt == 0) return "0";
+      std::string ret;
+      bool first = true;
+      for (auto it = poly.begin(); it < poly.end(); ++it)
+      {
+        if (it->get_coe() == 0 && nonzero_cnt > 0)
+        {
+          continue;
+        }
+        if (first)
+        {
+          ret += it->to_tex();
+          first = false;
+          continue;
+        }
+        else if (!it->is_positive())
+        {
+          ret += "-";
+          ret += it->negate().to_tex();
+          continue;
+        }
+        else
+        {
+          ret += "+" + it->to_tex();
           continue;
         }
       }
@@ -896,6 +990,17 @@ namespace symxx
         ret += ")";
       }
       return ret;
+    }
+  
+    std::string to_tex() const
+    {
+      if (numerator.get_poly().empty()) return "0";
+      if (denominator.get_poly().size() == 1 && denominator.get_poly()[0].get_coe() == 1
+          && denominator.get_poly()[0].no_symbols())
+      {
+        return numerator.to_tex();
+      }
+      return "\\frac{" + numerator.to_tex() + "}{" + denominator.to_tex() + "}";
     }
   };
   

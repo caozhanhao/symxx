@@ -310,6 +310,20 @@ namespace symxx
       symxx_unreachable();
       return "";
     }
+  
+    std::string to_tex() const
+    {
+      if (denominator != 1)
+      {
+        return "\\frac{" + adapter_to_string(numerator) + "}{" + adapter_to_string(denominator) + "}";
+      }
+      else
+      {
+        return adapter_to_string(numerator);
+      }
+      symxx_unreachable();
+      return "";
+    }
   };
   
   template<typename U>
@@ -615,7 +629,30 @@ namespace symxx
         ret += "_" + adapter_to_string(index) + "/" + radicand.to_string();
       }
       else
+      {
         ret += "_/" + radicand.to_string();
+      }
+      return ret;
+    }
+  
+    std::string to_tex() const
+    {
+      if (coe == 0) return "0";
+      if (is_rational()) return coe.to_tex();
+    
+      std::string ret;
+      if (coe != 1)
+      {
+        ret += coe == -1 ? "-" : coe.to_tex();
+      }
+      if (index != 2)
+      {
+        ret += "\\sqrt[n" + adapter_to_string(index) + "]{" + radicand.to_tex() + "}";
+      }
+      else
+      {
+        ret += "\\sqrt{" + radicand.to_tex() + "}";
+      }
       return ret;
     }
   

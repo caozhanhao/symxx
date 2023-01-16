@@ -87,18 +87,28 @@ namespace symxx
         std::cout << std::endl;
       }
     }
-    
+  
     void print_constant(const std::string &name) const
     {
       std::cout << "Constant: " << name << " = " << constants.at(name) << std::endl;
     }
-    
+  
     //cmd
     void cmd_normalize(const std::string &body) const
     {
       print_result(ExprParser<IntType>(body).parse().normalize());
     }
-    
+  
+    void cmd_tex(const std::string &body) const
+    {
+      std::cout << (ExprParser<IntType>(body).parse().to_tex()) << std::endl;
+    }
+  
+    void cmd_ntex(const std::string &body) const
+    {
+      std::cout << (ExprParser<IntType>(body).parse().normalize().to_tex()) << std::endl;
+    }
+  
     void cmd_factor(const std::string &body) const
     {
       std::multiset<IntType> factors;
@@ -265,6 +275,8 @@ namespace symxx
             body = "";
           }
           if (cmd == "normalize") { cmd_normalize(body); }
+          if (cmd == "tex") { cmd_tex(body); }
+          if (cmd == "ntex") { cmd_ntex(body); }
           else if (cmd == "func") { cmd_func(body); }
           else if (cmd == "constant") { cmd_constant(body); }
           else if (cmd == "print") { cmd_print(body); }
