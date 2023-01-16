@@ -315,7 +315,7 @@ namespace symxx
 
 #if defined(SYMXX_ENABLE_INT128)
   using CLI = BasicCLI<__int128_t>;
-#elif define(SYMXX_ENABLE_HUGE)
+#elif defined(SYMXX_ENABLE_HUGE)
   using CLI = BasicCLI<Huge>;
 #else
   using CLI = BasicCLI<int64_t>;
